@@ -1,7 +1,8 @@
 <div align="center">
   <img src="./logo.png" alt="SOUL Logo" width="800">
   
-# SOUL - System for Observed Unique Legacy
+# SOUL 
+### System for Observed Unique Legacy
 
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
