@@ -12,32 +12,33 @@ import (
 )
 
 // yamlFileConfig mirrors the relevant subset of config.example.yaml.
+// Bool fields use *bool so we can distinguish "not set" from "set to false".
 type yamlFileConfig struct {
 	Soul struct {
 		Storage struct {
 			Path string `yaml:"path"`
 		} `yaml:"storage"`
 		DriftDetection struct {
-			Threshold       float64 `yaml:"threshold"`
-			WindowSize      int     `yaml:"window_size"`
-			AutoCheckAfterCapture bool `yaml:"auto_check_after_capture"`
+			Threshold             float64 `yaml:"threshold"`
+			WindowSize            int     `yaml:"window_size"`
+			AutoCheckAfterCapture *bool   `yaml:"auto_check_after_capture"`
 		} `yaml:"drift_detection"`
 		Recall struct {
 			DefaultBudgetTokens int `yaml:"default_budget_tokens"`
 		} `yaml:"recall"`
 		Extraction struct {
-			MinTraitConfidence       float64 `yaml:"min_trait_confidence"`
-			MinObservationsForTrait  int     `yaml:"min_observations_for_trait"`
+			MinTraitConfidence      float64 `yaml:"min_trait_confidence"`
+			MinObservationsForTrait int     `yaml:"min_observations_for_trait"`
 		} `yaml:"extraction"`
 		ModelSwap struct {
-			AutoReinforce bool `yaml:"auto_reinforce"`
+			AutoReinforce *bool `yaml:"auto_reinforce"`
 		} `yaml:"model_swap"`
 		Evolution struct {
-			Enabled          bool `yaml:"enabled"`
-			MaxHistoryVersions int `yaml:"max_history_versions"`
+			Enabled            *bool `yaml:"enabled"`
+			MaxHistoryVersions int   `yaml:"max_history_versions"`
 		} `yaml:"evolution"`
 		MCP struct {
-			Enabled bool   `yaml:"enabled"`
+			Enabled *bool  `yaml:"enabled"`
 			Host    string `yaml:"host"`
 			Port    int    `yaml:"port"`
 		} `yaml:"mcp"`
@@ -74,8 +75,8 @@ func LoadConfigFile(path string) (*SoulConfig, error) {
 	if fc.Soul.DriftDetection.WindowSize > 0 {
 		cfg.DriftWindowSize = fc.Soul.DriftDetection.WindowSize
 	}
-	if fc.Soul.DriftDetection.AutoCheckAfterCapture {
-		cfg.AutoCheckAfterCapture = fc.Soul.DriftDetection.AutoCheckAfterCapture
+	if fc.Soul.DriftDetection.AutoCheckAfterCapture != nil {
+		cfg.AutoCheckAfterCapture = *fc.Soul.DriftDetection.AutoCheckAfterCapture
 	}
 	if fc.Soul.Recall.DefaultBudgetTokens > 0 {
 		cfg.MaxContextTokens = fc.Soul.Recall.DefaultBudgetTokens
@@ -86,17 +87,17 @@ func LoadConfigFile(path string) (*SoulConfig, error) {
 	if fc.Soul.Extraction.MinObservationsForTrait > 0 {
 		cfg.MinObservationsForTrait = fc.Soul.Extraction.MinObservationsForTrait
 	}
-	if fc.Soul.ModelSwap.AutoReinforce {
-		cfg.AutoReinforce = fc.Soul.ModelSwap.AutoReinforce
+	if fc.Soul.ModelSwap.AutoReinforce != nil {
+		cfg.AutoReinforce = *fc.Soul.ModelSwap.AutoReinforce
 	}
-	if fc.Soul.Evolution.Enabled {
-		cfg.EvolutionEnabled = fc.Soul.Evolution.Enabled
+	if fc.Soul.Evolution.Enabled != nil {
+		cfg.EvolutionEnabled = *fc.Soul.Evolution.Enabled
 	}
 	if fc.Soul.Evolution.MaxHistoryVersions > 0 {
 		cfg.MaxHistoryVersions = fc.Soul.Evolution.MaxHistoryVersions
 	}
-	if fc.Soul.MCP.Enabled {
-		cfg.MCPEnabled = fc.Soul.MCP.Enabled
+	if fc.Soul.MCP.Enabled != nil {
+		cfg.MCPEnabled = *fc.Soul.MCP.Enabled
 		cfg.MCPHost = fc.Soul.MCP.Host
 		cfg.MCPPort = fc.Soul.MCP.Port
 	}
@@ -142,20 +143,14 @@ func LoadConfig(filePath string) (*SoulConfig, error) {
 	if fileCfg.DriftWindowSize > 0 {
 		cfg.DriftWindowSize = fileCfg.DriftWindowSize
 	}
-	if fileCfg.AutoCheckAfterCapture {
-		cfg.AutoCheckAfterCapture = fileCfg.AutoCheckAfterCapture
-	}
-	if fileCfg.AutoReinforce {
-		cfg.AutoReinforce = fileCfg.AutoReinforce
-	}
-	if !fileCfg.EvolutionEnabled {
-		cfg.EvolutionEnabled = fileCfg.EvolutionEnabled
-	}
+	// Bool fields: always overlay because LoadConfigFile now distinguishes
+	// "not set" (zero value) from "explicitly set to false" via *bool.
+	cfg.AutoCheckAfterCapture = fileCfg.AutoCheckAfterCapture
+	cfg.AutoReinforce = fileCfg.AutoReinforce
+	cfg.EvolutionEnabled = fileCfg.EvolutionEnabled
+	cfg.MCPEnabled = fileCfg.MCPEnabled
 	if fileCfg.MaxHistoryVersions > 0 {
 		cfg.MaxHistoryVersions = fileCfg.MaxHistoryVersions
-	}
-	if fileCfg.MCPEnabled {
-		cfg.MCPEnabled = fileCfg.MCPEnabled
 	}
 	if fileCfg.MCPHost != "" {
 		cfg.MCPHost = fileCfg.MCPHost

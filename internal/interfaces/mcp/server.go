@@ -60,10 +60,11 @@ Example:
 			InputSchema: mcptypes.ToolInputSchema{
 				Type: "object",
 				Properties: map[string]interface{}{
-					"agent_id":     map[string]string{"type": "string", "description": "Agent identifier"},
-					"conversation": map[string]string{"type": "string", "description": "Raw conversation text to analyze"},
-					"model_id":     map[string]string{"type": "string", "description": "Model identifier (optional)"},
-					"session_id":   map[string]string{"type": "string", "description": "Session identifier (optional)"},
+					"agent_id":           map[string]string{"type": "string", "description": "Agent identifier"},
+					"conversation":       map[string]string{"type": "string", "description": "Raw conversation text to analyze"},
+					"model_id":           map[string]string{"type": "string", "description": "Model identifier (optional)"},
+					"session_id":         map[string]string{"type": "string", "description": "Session identifier (optional)"},
+					"behavioral_metrics": map[string]string{"type": "string", "description": "Optional JSON with pre-computed behavioral metrics"},
 				},
 			},
 		},

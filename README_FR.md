@@ -5,7 +5,7 @@
 
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
-[![Version](https://img.shields.io/badge/Version-0.0.2-blue?style=flat-square)]()
+[![Version](https://img.shields.io/badge/Version-0.0.3-blue?style=flat-square)]()
 
 **SOUL** (System for Observed Unique Legacy) est une **extension de preservation d'identite pour les agents LLM**. Elle capture, stocke et recall (rappelle) la personnalite, la voix et les valeurs des agents IA a travers les sessions et les changements de modele.
 

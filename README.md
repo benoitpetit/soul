@@ -6,7 +6,7 @@
 
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
-[![Version](https://img.shields.io/badge/Version-0.0.2-blue?style=flat-square)]()
+[![Version](https://img.shields.io/badge/Version-0.0.3-blue?style=flat-square)]()
 
 
 [**SOUL**](https://github.com/benoitpetit/soul) is an **identity preservation extension for LLM agents**. It captures, stores, and recalls the personality, voice, and values of AI agents across sessions and model changes.
