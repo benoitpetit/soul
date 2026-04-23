@@ -1,21 +1,25 @@
 # SOUL - System for Observed Unique Legacy
 # Configuration example
+# NOTE: SOUL is currently stdio-only. The MCP server uses JSON-RPC over stdin/stdout.
+#       HTTP/TCP transport (host/port/auth) is planned for a future release.
 
 soul:
   # Version
-  version: "0.1.0"
+  version: "0.0.2"
   
   # Storage configuration
-  # SOUL shares the SQLite database with MIRA
+  # SOUL shares the SQLite database with MIRA when embedded.
+  # When standalone, this is the path to its own database file.
   storage:
     # Path to SQLite database — shared with MIRA (same file!)
     path: ".mira/mira.db"
     
-    # SQLite performance tuning
-    journal_mode: WAL          # Write-Ahead Logging for better concurrency
-    synchronous: NORMAL        # Balance between safety and speed
-    cache_size: -64000         # 64MB cache
-    mmap_size: 268435456      # 256MB memory-mapped I/O
+    # The following SQLite tuning options are parsed but currently use
+    # hardcoded defaults in the storage layer. They are reserved for future use.
+    # journal_mode: WAL
+    # synchronous: NORMAL
+    # cache_size: -64000
+    # mmap_size: 268435456
   
   # Identity extraction configuration
   extraction:
@@ -25,37 +29,27 @@ soul:
     # Number of observations needed for a trait to be well-established
     min_observations_for_trait: 5
     
-    # Lookback window for trait extraction (days)
-    extraction_lookback_days: 30
-    
-    # Categories to extract (all by default)
-    enabled_categories:
-      - cognitive
-      - emotional
-      - social
-      - epistemic
-      - expressive
-      - ethical
+    # The following options are documented but NOT YET IMPLEMENTED:
+    # extraction_lookback_days: 30
+    # enabled_categories:
+    #   - cognitive
+    #   - emotional
+    #   - social
+    #   - epistemic
+    #   - expressive
+    #   - ethical
   
   # Identity recall configuration
   recall:
     # Default token budget for identity prompts
     default_budget_tokens: 1000
     
-    # Minimum token budget (ultra-condensed mode)
-    min_budget_tokens: 200
-    
-    # Maximum token budget (full identity)
-    max_budget_tokens: 2000
-    
-    # Priority of identity in context window (higher = more important)
-    identity_priority: 100
-    
-    # Include MIRA memories in identity context
-    enrich_with_mira_memories: true
-    
-    # Maximum MIRA memories to include
-    max_mira_memories: 5
+    # The following options are documented but NOT YET IMPLEMENTED:
+    # min_budget_tokens: 200
+    # max_budget_tokens: 2000
+    # identity_priority: 100
+    # enrich_with_mira_memories: true   # MIRA memory enrichment is not wired
+    # max_mira_memories: 5
   
   # Drift detection configuration
   drift_detection:
@@ -69,26 +63,22 @@ soul:
     # Check drift automatically after each capture
     auto_check_after_capture: true
     
-    # Dimensions to monitor
-    monitored_dimensions:
-      - voice_profile
-      - personality_traits
-      - value_system
-      - emotional_tone
+    # The following options are documented but NOT YET IMPLEMENTED:
+    # monitored_dimensions:
+    #   - voice_profile
+    #   - personality_traits
+    #   - value_system
+    #   - emotional_tone
   
   # Model swap configuration
   model_swap:
     # Automatically reinforce identity after model swap
     auto_reinforce: true
     
-    # Maximum acceptable drift after swap
-    max_acceptable_post_swap_drift: 0.3
-    
-    # Generate reinforcement prompt immediately after swap
-    generate_reinforcement_prompt: true
-    
-    # Notify MIRA of identity changes
-    notify_mira: true
+    # The following options are documented but NOT YET IMPLEMENTED:
+    # max_acceptable_post_swap_drift: 0.3
+    # generate_reinforcement_prompt: true
+    # notify_mira: true                  # MIRA notification channel is not wired
   
   # Evolution tracking
   evolution:
@@ -98,28 +88,25 @@ soul:
     # Number of versions to keep in history
     max_history_versions: 100
     
-    # Compress old versions (keep summaries)
-    compress_old_versions: true
-    
-    # Compression threshold (versions older than N days)
-    compression_age_days: 90
+    # The following options are documented but NOT YET IMPLEMENTED:
+    # compress_old_versions: true
+    # compression_age_days: 90
   
   # MCP (Model Context Protocol) configuration
+  # NOTE: SOUL currently operates via stdio JSON-RPC only.
+  #       HTTP/TCP transport settings below are reserved for a future release.
   mcp:
     # Enable MCP server
     enabled: true
     
-    # Host and port
-    host: "localhost"
-    port: 8081
-    
-    # Authentication
-    auth_token: ""  # Leave empty for no auth (dev only)
+    # host: "localhost"   # NOT YET IMPLEMENTED — stdio only
+    # port: 8081          # NOT YET IMPLEMENTED — stdio only
+    # auth_token: ""      # NOT YET IMPLEMENTED — stdio only
   
-  # Logging
-  logging:
-    level: "info"  # debug, info, warn, error
-    format: "text"  # text, json
-    
-    # Log file (empty = stdout)
-    file: ""
+  # Logging configuration
+  # NOTE: Logging settings are documented but NOT YET IMPLEMENTED.
+  #       SOUL currently uses Go's standard slog with default settings.
+  # logging:
+  #   level: "info"
+  #   format: "text"
+  #   file: ""

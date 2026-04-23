@@ -5,7 +5,7 @@
 
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
-[![Version](https://img.shields.io/badge/Version-0.0.1-blue?style=flat-square)]()
+[![Version](https://img.shields.io/badge/Version-0.0.2-blue?style=flat-square)]()
 
 **SOUL** (System for Observed Unique Legacy) est une **extension de preservation d'identite pour les agents LLM**. Elle capture, stocke et recall (rappelle) la personnalite, la voix et les valeurs des agents IA a travers les sessions et les changements de modele.
 
@@ -30,7 +30,7 @@ MIRA peut integrer SOUL comme un binaire unique avec 16 outils MCP :
 
 ```bash
 # MIRA avec SOUL integre - binaire unique, 16 outils
-./mira --config config.yaml
+./mira --config config.yaml --with-soul
 ```
 
 Lorsqu'il est integre, SOUL partage la connexion SQLite de MIRA (`ownsDB = false`). Si l'initialisation de SOUL echoue, MIRA continue avec ses 8 outils.
@@ -249,14 +249,19 @@ SOUL expose **8 outils MCP** via stdio JSON-RPC :
 
 ### Option 1 : Integre dans MIRA (recommande)
 
-MIRA integre SOUL automatiquement quand le binaire est compile avec le support SOUL :
+SOUL est **opt-in** dans MIRA. Par defaut, MIRA fonctionne seul (8 outils). Pour activer SOUL :
 
 ```bash
-# Binaire unique avec 16 outils
-./mira --config config.yaml
+# Activer SOUL via le flag CLI
+./mira --config config.yaml --with-soul
+
+# Ou activer SOUL via la configuration
+```yaml
+soul:
+  enabled: true
 ```
 
-Les 8 outils SOUL sont automatiquement disponibles aux cotes des 8 outils MIRA.
+Quand il est active, les 8 outils SOUL sont enregistres aux cotes des 8 outils MIRA (16 au total).
 
 ### Option 2 : SOUL standalone
 
@@ -273,7 +278,7 @@ soul mcp --storage /path/to/.mira/mira.db
 ### Option 3 : MIRA et SOUL comme serveurs separes
 
 ```bash
-# Terminal 1 - MIRA
+# Terminal 1 - MIRA (SOUL desactive par defaut)
 ./mira --config /path/to/mira/config.yaml
 
 # Terminal 2 - SOUL (partage la base de MIRA)

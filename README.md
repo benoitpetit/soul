@@ -5,7 +5,7 @@
 
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
-[![Version](https://img.shields.io/badge/Version-0.0.1-blue?style=flat-square)]()
+[![Version](https://img.shields.io/badge/Version-0.0.2-blue?style=flat-square)]()
 
 
 [**SOUL**](https://github.com/benoitpetit/soul) is an **identity preservation extension for LLM agents**. It captures, stores, and recalls the personality, voice, and values of AI agents across sessions and model changes.
@@ -31,7 +31,7 @@ MIRA can embed SOUL as a single binary with 16 MCP tools:
 
 ```bash
 # MIRA with embedded SOUL - single binary, 16 tools
-./mira --config config.yaml
+./mira --config config.yaml --with-soul
 ```
 
 When embedded, SOUL shares MIRA's SQLite connection (`ownsDB = false`). If SOUL initialization fails, MIRA continues with its 8 tools.
@@ -250,14 +250,19 @@ SOUL exposes **8 MCP tools** over stdio JSON-RPC:
 
 ### Option 1: Embedded in MIRA (recommended)
 
-MIRA embeds SOUL automatically when the binary is built with SOUL support:
+SOUL is **opt-in** within MIRA. By default, MIRA runs solo (8 tools). To activate SOUL:
 
 ```bash
-# Single binary with 16 tools
-./mira --config config.yaml
+# Enable SOUL via CLI flag
+./mira --config config.yaml --with-soul
+
+# Or enable SOUL via config
+```yaml
+soul:
+  enabled: true
 ```
 
-The 8 SOUL tools are automatically available alongside the 8 MIRA tools.
+When enabled, the 8 SOUL tools are registered alongside the 8 MIRA tools (16 total).
 
 ### Option 2: Standalone SOUL
 
@@ -274,7 +279,7 @@ soul mcp --storage /path/to/.mira/mira.db
 ### Option 3: Both MIRA and SOUL as separate servers
 
 ```bash
-# Terminal 1 - MIRA
+# Terminal 1 - MIRA (SOUL disabled by default)
 ./mira --config /path/to/mira/config.yaml
 
 # Terminal 2 - SOUL (shares MIRA's database)
