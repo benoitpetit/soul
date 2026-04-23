@@ -1,0 +1,125 @@
+# SOUL - System for Observed Unique Legacy
+# Configuration example
+
+soul:
+  # Version
+  version: "0.1.0"
+  
+  # Storage configuration
+  # SOUL shares the SQLite database with MIRA
+  storage:
+    # Path to SQLite database — shared with MIRA (same file!)
+    path: ".mira/mira.db"
+    
+    # SQLite performance tuning
+    journal_mode: WAL          # Write-Ahead Logging for better concurrency
+    synchronous: NORMAL        # Balance between safety and speed
+    cache_size: -64000         # 64MB cache
+    mmap_size: 268435456      # 256MB memory-mapped I/O
+  
+  # Identity extraction configuration
+  extraction:
+    # Minimum confidence for a trait to be considered valid
+    min_trait_confidence: 0.3
+    
+    # Number of observations needed for a trait to be well-established
+    min_observations_for_trait: 5
+    
+    # Lookback window for trait extraction (days)
+    extraction_lookback_days: 30
+    
+    # Categories to extract (all by default)
+    enabled_categories:
+      - cognitive
+      - emotional
+      - social
+      - epistemic
+      - expressive
+      - ethical
+  
+  # Identity recall configuration
+  recall:
+    # Default token budget for identity prompts
+    default_budget_tokens: 1000
+    
+    # Minimum token budget (ultra-condensed mode)
+    min_budget_tokens: 200
+    
+    # Maximum token budget (full identity)
+    max_budget_tokens: 2000
+    
+    # Priority of identity in context window (higher = more important)
+    identity_priority: 100
+    
+    # Include MIRA memories in identity context
+    enrich_with_mira_memories: true
+    
+    # Maximum MIRA memories to include
+    max_mira_memories: 5
+  
+  # Drift detection configuration
+  drift_detection:
+    # Threshold for drift alert (0.0 - 1.0)
+    # 0.3 means 30% change triggers an alert
+    threshold: 0.3
+    
+    # Window size for drift calculation (number of versions)
+    window_size: 10
+    
+    # Check drift automatically after each capture
+    auto_check_after_capture: true
+    
+    # Dimensions to monitor
+    monitored_dimensions:
+      - voice_profile
+      - personality_traits
+      - value_system
+      - emotional_tone
+  
+  # Model swap configuration
+  model_swap:
+    # Automatically reinforce identity after model swap
+    auto_reinforce: true
+    
+    # Maximum acceptable drift after swap
+    max_acceptable_post_swap_drift: 0.3
+    
+    # Generate reinforcement prompt immediately after swap
+    generate_reinforcement_prompt: true
+    
+    # Notify MIRA of identity changes
+    notify_mira: true
+  
+  # Evolution tracking
+  evolution:
+    # Track evolution automatically
+    enabled: true
+    
+    # Number of versions to keep in history
+    max_history_versions: 100
+    
+    # Compress old versions (keep summaries)
+    compress_old_versions: true
+    
+    # Compression threshold (versions older than N days)
+    compression_age_days: 90
+  
+  # MCP (Model Context Protocol) configuration
+  mcp:
+    # Enable MCP server
+    enabled: true
+    
+    # Host and port
+    host: "localhost"
+    port: 8081
+    
+    # Authentication
+    auth_token: ""  # Leave empty for no auth (dev only)
+  
+  # Logging
+  logging:
+    level: "info"  # debug, info, warn, error
+    format: "text"  # text, json
+    
+    # Log file (empty = stdout)
+    file: ""
