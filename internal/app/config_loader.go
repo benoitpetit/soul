@@ -164,5 +164,36 @@ func LoadConfig(filePath string) (*SoulConfig, error) {
 		cfg.MCPPort = fileCfg.MCPPort
 	}
 
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
 	return cfg, nil
+}
+
+// Validate checks that configuration values are within valid ranges.
+func (c *SoulConfig) Validate() error {
+	if c.DriftThreshold < 0 || c.DriftThreshold > 1 {
+		return fmt.Errorf("drift_threshold must be between 0 and 1, got %v", c.DriftThreshold)
+	}
+	if c.MaxContextTokens <= 0 {
+		return fmt.Errorf("max_context_tokens must be positive, got %d", c.MaxContextTokens)
+	}
+	if c.MinTraitConfidence < 0 || c.MinTraitConfidence > 1 {
+		return fmt.Errorf("min_trait_confidence must be between 0 and 1, got %v", c.MinTraitConfidence)
+	}
+	if c.MinObservationsForTrait <= 0 {
+		return fmt.Errorf("min_observations_for_trait must be positive, got %d", c.MinObservationsForTrait)
+	}
+	if c.DriftWindowSize <= 0 {
+		return fmt.Errorf("drift_window_size must be positive, got %d", c.DriftWindowSize)
+	}
+	if c.MaxHistoryVersions <= 0 {
+		return fmt.Errorf("max_history_versions must be positive, got %d", c.MaxHistoryVersions)
+	}
+	if c.MCPPort < 1 || c.MCPPort > 65535 {
+		return fmt.Errorf("mcp_port must be between 1 and 65535, got %d", c.MCPPort)
+	}
+	return nil
 }

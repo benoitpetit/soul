@@ -1,9 +1,9 @@
-// Drift Detection - Détection de dérive identitaire
 package interactors
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
@@ -50,7 +50,7 @@ func (uc *DriftDetectionUseCase) CheckDrift(ctx context.Context, agentID string,
 		diff := entities.CalculateDiff(reference, currentObserved)
 		if diff != nil {
 			if err := uc.storage.RecordDiff(ctx, diff); err != nil {
-				fmt.Printf("Warning: failed to record diff: %v\n", err)
+				slog.Warn("failed to record diff", "error", err)
 			}
 		}
 		
@@ -58,9 +58,10 @@ func (uc *DriftDetectionUseCase) CheckDrift(ctx context.Context, agentID string,
 		if report.IsSignificant {
 			alert, err := uc.composer.ComposeDiffusionAlert(ctx, report)
 			if err == nil && alert != nil {
-				fmt.Printf("ALERT: Significant identity drift detected for agent %s (score: %.2f)\n", 
-					agentID, report.DriftScore)
-				fmt.Printf("Alert prompt (%d tokens): %s\n", alert.TokenEstimate, alert.Content)
+				slog.Warn("significant identity drift detected",
+					"agent_id", agentID,
+					"drift_score", report.DriftScore,
+					"alert_tokens", alert.TokenEstimate)
 			}
 		}
 	}

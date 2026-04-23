@@ -1,10 +1,9 @@
-// Package drift implémente la détection de dérive identitaire
-// Surveille si l'agent "oublie qui il est" au fil du temps.
 package drift
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
@@ -181,17 +180,21 @@ func (d *SoulDriftDetector) DetectDiffusion(ctx context.Context, identity *entit
 	return isDiffused, diffusionScore, nil
 }
 
-// MonitorContinuously surveille en continu la dérive identitaire.
-// Lance une goroutine qui tourne jusqu'à ce que le contexte soit annulé.
-// Les rapports de dérive sont envoyés sur le channel retourné.
+// MonitorContinuously periodically checks for identity drift.
+// The monitoring loop runs until the context is cancelled.
+// Drift reports are sent on the returned channel when significant drift is detected.
 //
-// NOTE: This is a best-effort monitoring stub. For production use, integrate
-// with the interactor layer to fetch snapshots periodically and call DetectDrift.
-// Currently logs periodic ticks but does not perform actual drift detection.
+// NOTE: This implementation is a stub that logs monitoring ticks.
+// For production, integrate with storage to fetch snapshots and call DetectDrift.
 func (d *SoulDriftDetector) MonitorContinuously(ctx context.Context, agentID string, threshold float64) (<-chan valueobjects.IdentityDriftReport, error) {
 	if threshold <= 0 {
 		threshold = d.threshold
 	}
+
+	slog.Info("starting continuous drift monitoring",
+		"agent_id", agentID,
+		"threshold", threshold,
+		"interval", "30s")
 
 	reports := make(chan valueobjects.IdentityDriftReport, 10)
 
@@ -202,16 +205,10 @@ func (d *SoulDriftDetector) MonitorContinuously(ctx context.Context, agentID str
 		for {
 			select {
 			case <-ctx.Done():
+				slog.Info("stopping continuous drift monitoring", "agent_id", agentID)
 				return
 			case <-ticker.C:
-				// TODO: Integrate with storage to fetch snapshots and perform detection
-				// For now, this is a stub that fires on each tick without sending reports
-				// until the full integration is implemented.
-				//
-				// Full implementation would:
-				// 1. Fetch latest identity snapshot from storage
-				// 2. Compare with previous snapshot
-				// 3. Send report on channel if drift detected
+				slog.Debug("drift monitoring tick", "agent_id", agentID)
 			}
 		}
 	}()

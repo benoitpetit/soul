@@ -1,26 +1,35 @@
-// Package composition implémente la composition de prompts d'identité
-// Transforme les snapshots d'identité en prompts injectables dans le context window.
+// Package composition implements identity prompt composition.
+// Transforms identity snapshots into prompts injectable into LLM context window.
 package composition
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
+	"github.com/pkoukk/tiktoken-go"
 )
 
-// SoulComposerService implémente ports.IdentityComposer
-// Génère des prompts d'identité naturels et efficaces pour le LLM.
+// SoulComposerService implements ports.IdentityComposer.
+// Generates natural and effective identity prompts for LLMs.
 type SoulComposerService struct {
-	baseTemplate     string
+	baseTemplate       string
 	reinforceTemplate string
-	alertTemplate    string
+	alertTemplate     string
+	tokenizer         *tiktoken.Tiktoken
 }
 
-// NewSoulComposerService crée un nouveau service de composition
+// NewSoulComposerService creates a new composition service.
 func NewSoulComposerService() *SoulComposerService {
+	tok, err := tiktoken.EncodingForModel("gpt-3.5-turbo")
+	if err != nil {
+		slog.Warn("failed to load tiktoken tokenizer, falling back to char-based estimation", "error", err)
+		tok = nil
+	}
 	return &SoulComposerService{
 		baseTemplate: `## Your Identity
 
@@ -63,10 +72,11 @@ WARNING: Your recent responses show significant deviation from your established 
 
 ### Action Required
 Please realign your responses with your established identity. Be yourself.`,
+		tokenizer: tok,
 	}
 }
 
-// ComposeIdentityPrompt génère un prompt d'identité complet
+// ComposeIdentityPrompt generates a complete identity prompt
 func (s *SoulComposerService) ComposeIdentityPrompt(ctx context.Context, identity *entities.IdentitySnapshot, budgetTokens int) (*valueobjects.IdentityContextPrompt, error) {
 	// Construire les sections
 	voiceSection := identity.VoiceProfile.ToNaturalDescription()
@@ -166,10 +176,13 @@ func (s *SoulComposerService) ComposeDiffusionAlert(ctx context.Context, drift *
 	}, nil
 }
 
-// EstimateTokenCount estime le nombre de tokens d'un texte
+// EstimateTokenCount estimates the number of tokens in a text.
 func (s *SoulComposerService) EstimateTokenCount(ctx context.Context, prompt string) (int, error) {
-	// Approximation simple : en moyenne 1 token ≈ 4 caractères pour l'anglais
-	// Pour une estimation plus précise, on pourrait utiliser un tokenizer
+	if s.tokenizer != nil {
+		tokens := s.tokenizer.Encode(prompt, nil, nil)
+		return len(tokens), nil
+	}
+	// Fallback: char-based estimation (~4 chars per token for English)
 	return len(prompt) / 4, nil
 }
 
@@ -320,99 +333,145 @@ func (s *SoulComposerService) extractCriticalMarkers(identity *entities.Identity
 }
 
 func (s *SoulComposerService) optimizeForBudget(prompt string, budgetTokens int) string {
-	currentEstimate := len(prompt) / 4
-	
-	if currentEstimate <= budgetTokens {
+	currentTokens, err := s.EstimateTokenCount(context.Background(), prompt)
+	if err != nil || currentTokens <= budgetTokens {
 		return prompt
 	}
-	
-	// Réduire le prompt pour tenir dans le budget
-	// Stratégie : garder les sections les plus importantes
-	reductionRatio := float64(budgetTokens) / float64(currentEstimate)
-	
-	if reductionRatio < 0.5 {
-		// Budget très serré : version ultra-condensée
-		return s.generateUltraCondensedPrompt(prompt, budgetTokens)
+
+	// Smart reduction strategy: prioritize sections by importance
+	sections := parseSections(prompt)
+	if len(sections) == 0 {
+		return truncateByTokens(prompt, budgetTokens, s)
 	}
-	
-	// Budget modéré : simplifier les descriptions
-	// (Dans une vraie implémentation, on réduirait chaque section proportionnellement)
-	return prompt[:budgetTokens*4] // Troncature brutale (à améliorer)
+
+	// Section priority (higher = more important)
+	sectionPriority := map[string]int{
+		"voice_profile":        90,
+		"personality_traits":   85,
+		"communication_style": 70,
+		"value_system":        60,
+		"behavioral_signature": 50,
+		"emotional_tone":       40,
+	}
+
+	type section struct {
+		name    string
+		content string
+		tokens  int
+		lines   int
+	}
+
+	parsed := make([]section, 0, len(sections))
+	for name, content := range sections {
+		tok, _ := s.EstimateTokenCount(context.Background(), content)
+		parsed = append(parsed, section{
+			name:    name,
+			content: content,
+			tokens:  tok,
+			lines:   strings.Count(content, "\n") + 1,
+		})
+	}
+
+	// Sort by priority (descending)
+	for i := 0; i < len(parsed); i++ {
+		for j := i + 1; j < len(parsed); j++ {
+			pi, pj := sectionPriority[parsed[i].name], sectionPriority[parsed[j].name]
+			if pi < pj {
+				parsed[i], parsed[j] = parsed[j], parsed[i]
+			}
+		}
+	}
+
+	// Greedily select sections to fit budget
+	var result string
+	remaining := budgetTokens
+
+	for _, sec := range parsed {
+		if sec.tokens <= remaining-5 { // Keep 5 tokens buffer
+			result += "### " + formatSectionName(sec.name) + "\n\n" + sec.content + "\n\n"
+			remaining -= sec.tokens
+		} else if remaining > 20 {
+			// Partial section
+			result += "### " + formatSectionName(sec.name) + "\n\n" +
+				truncateByTokens(sec.content, remaining-5, s) + "\n\n"
+			break
+		}
+	}
+
+	if result == "" {
+		result = "## Your Identity\n\n" + truncateByTokens(prompt, budgetTokens-10, s)
+	}
+
+	return strings.TrimSpace(result)
 }
 
-func (s *SoulComposerService) generateUltraCondensedPrompt(prompt string, budgetTokens int) string {
-	// Version minimale : juste les traits clés et la voix
-	// Extraction simplifiée du contenu important
-	
-	// Chercher les sections importantes
-	importantParts := "## Your Identity\n\n"
-	
-	// Extraire la première ligne de chaque section
-	lines := splitLines(prompt)
+func parseSections(prompt string) map[string]string {
+	sections := make(map[string]string)
+	lines := strings.Split(prompt, "\n")
+
+	var currentSection string
+	var currentContent strings.Builder
+
 	for _, line := range lines {
-		if startsWithImportantSection(line) {
-			importantParts += line + "\n"
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "### ") {
+			if currentSection != "" {
+				sections[currentSection] = strings.TrimSpace(currentContent.String())
+				currentContent.Reset()
+			}
+			currentSection = strings.ToLower(strings.TrimPrefix(trimmed, "### "))
+		} else if currentSection != "" {
+			currentContent.WriteString(line + "\n")
 		}
 	}
-	
-	if len(importantParts) < 50 {
-		// Fallback
-		importantParts = "Maintain your established personality and communication style."
+
+	if currentSection != "" {
+		sections[currentSection] = strings.TrimSpace(currentContent.String())
 	}
-	
-	// Tronquer au budget
-	maxChars := budgetTokens * 4
-	if len(importantParts) > maxChars {
-		importantParts = importantParts[:maxChars]
-	}
-	
-	return importantParts
+
+	return sections
 }
 
-func startsWithImportantSection(line string) bool {
-	importantMarkers := []string{"###", "- **", "You are", "Your", "You tend", "You prefer"}
-	for _, marker := range importantMarkers {
-		if len(line) > len(marker) && line[:len(marker)] == marker {
-			return true
-		}
-	}
-	return false
+func formatSectionName(name string) string {
+	// Convert snake_case or joined to Title Case
+	name = strings.ReplaceAll(name, "_", " ")
+	return strings.Title(name)
 }
 
-func splitLines(text string) []string {
-	var lines []string
-	current := ""
-	for _, char := range text {
-		if char == '\n' {
-			lines = append(lines, current)
-			current = ""
+func truncateByTokens(text string, maxTokens int, s *SoulComposerService) string {
+	if maxTokens <= 0 {
+		return ""
+	}
+	lines := strings.Split(text, "\n")
+	var result strings.Builder
+	remaining := maxTokens
+
+	for _, line := range lines {
+		lineTokens, _ := s.EstimateTokenCount(context.Background(), line)
+		if lineTokens <= remaining {
+			result.WriteString(line + "\n")
+			remaining -= lineTokens
+		} else if remaining > 10 {
+			// Partial line
+			words := strings.Fields(line)
+			for _, word := range words {
+				wordTokens, _ := s.EstimateTokenCount(context.Background(), word+" ")
+				if wordTokens <= remaining-1 {
+					result.WriteString(word + " ")
+					remaining -= wordTokens
+				} else {
+					break
+				}
+			}
+			break
 		} else {
-			current += string(char)
+			break
 		}
 	}
-	if current != "" {
-		lines = append(lines, current)
-	}
-	return lines
+
+	return strings.TrimSpace(result.String())
 }
 
 func replaceTag(text, tag, replacement string) string {
-	result := ""
-	idx := 0
-	for {
-		found := -1
-		for i := idx; i <= len(text)-len(tag); i++ {
-			if text[i:i+len(tag)] == tag {
-				found = i
-				break
-			}
-		}
-		if found == -1 {
-			result += text[idx:]
-			break
-		}
-		result += text[idx:found] + replacement
-		idx = found + len(tag)
-	}
-	return result
+	return strings.ReplaceAll(text, tag, replacement)
 }

@@ -1,10 +1,17 @@
+<div align="center">
+  <img src="./logo.png" alt="SOUL Logo" width="800">
+  
 # SOUL - System for Observed Unique Legacy
 
-SOUL is an **identity preservation extension for LLM agents**. It captures, stores, and recalls the personality, voice, and values of AI agents across sessions and model changes.
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
+[![Version](https://img.shields.io/badge/Version-0.0.2-blue?style=flat-square)]()
 
-Where **MIRA** answers *"What does the agent know?"*, SOUL answers *"Who is the agent?"*
 
----
+[**SOUL**](https://github.com/benoitpetit/soul) is an **identity preservation extension for LLM agents**. It captures, stores, and recalls the personality, voice, and values of AI agents across sessions and model changes.
+
+Where [**MIRA**](https://github.com/benoitpetit/mira) answers *"What does the agent know?"*, SOUL answers *"Who is the agent?"*
+</div>
 
 ## Relationship with MIRA
 
@@ -329,8 +336,8 @@ Tool names never collide - MIRA tools use `mira_` prefix, SOUL tools use `soul_`
 
 SOUL computes drift by comparing the current snapshot against N previous versions:
 
-- Per-dimension cosine distance on embeddings
-- Average `OverallDrift` score across the window
+- Per-dimension distance: voice profile, personality traits, value system, emotional tone
+- Average `DriftScore` across dimensions
 - Alert when `DriftScore > threshold` (default: 0.3)
 
 Recommended action when drift is significant: inject the reinforcement prompt from `soul_recall` or `soul_swap` into the next context.
@@ -352,5 +359,7 @@ All packages pass with an in-memory SQLite database. MIRA table absence is handl
 ```
 github.com/benoitpetit/soul
 ```
+
+**Repository:** https://github.com/benoitpetit/soul
 
 Go 1.23.2 - SQLite via `mattn/go-sqlite3` - MCP via `mark3labs/mcp-go v0.2.0`

@@ -1,6 +1,7 @@
 # Binaries
 soul
 soul.exe
+bin/
 /bin/
 *.exe
 

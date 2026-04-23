@@ -1,10 +1,11 @@
-// Package interactors implémente la logique métier de SOUL (Clean Architecture)
-// Chaque interactor correspond à un use case spécifique.
+// Package interactors implements SOUL business logic (Clean Architecture).
+// Each interactor corresponds to a specific use case.
 package interactors
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
@@ -12,14 +13,13 @@ import (
 	"github.com/benoitpetit/soul/internal/usecases/ports"
 )
 
-// IdentityCaptureUseCase implémente le use case de capture d'identité
-// depuis une conversation ou des interactions avec l'agent.
+// IdentityCaptureUseCase implements identity capture from conversations.
 type IdentityCaptureUseCase struct {
-	storage    ports.SoulStorage
-	extractor  ports.IdentityExtractor
+	storage   ports.SoulStorage
+	extractor ports.IdentityExtractor
 }
 
-// NewIdentityCaptureUseCase crée un nouveau use case de capture
+// NewIdentityCaptureUseCase creates a new capture use case.
 func NewIdentityCaptureUseCase(storage ports.SoulStorage, extractor ports.IdentityExtractor) *IdentityCaptureUseCase {
 	return &IdentityCaptureUseCase{
 		storage:   storage,
@@ -27,58 +27,55 @@ func NewIdentityCaptureUseCase(storage ports.SoulStorage, extractor ports.Identi
 	}
 }
 
-// CaptureFromConversation capture l'identité depuis une conversation complète
+// CaptureFromConversation captures identity from a complete conversation.
 func (uc *IdentityCaptureUseCase) CaptureFromConversation(ctx context.Context, request *valueobjects.SoulCaptureRequest) (*entities.IdentitySnapshot, error) {
-	// 1. Extraire tous les éléments identitaires de la conversation
+	// 1. Extract all identity elements from the conversation
 	extraction, err := uc.extractor.ExtractFromConversation(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("extraction failed: %w", err)
 	}
-	
-	// 2. Récupérer l'identité existante (s'il y en a une)
+
+	// 2. Get existing identity if any
 	existingIdentity, err := uc.storage.GetLatestIdentity(ctx, request.AgentID)
 	if err != nil {
-		// Si pas d'identité existante, créer la première
 		existingIdentity = nil
 	}
-	
-	// 3. Construire le nouveau snapshot
+
+	// 3. Build new snapshot
 	newIdentity := uc.buildSnapshotFromExtraction(request, extraction, existingIdentity)
-	
-	// 4. Sauvegarder les observations brutes
+
+	// 4. Store raw observations
 	for _, obs := range extraction.SourceObservations {
 		if err := uc.storage.StoreObservation(ctx, obs); err != nil {
-			// Log mais ne pas échouer
-			fmt.Printf("Warning: failed to store observation: %v\n", err)
+			slog.Warn("failed to store observation", "error", err)
 		}
 	}
-	
-	// 5. Sauvegarder/fusionner les traits
+
+	// 5. Store/merge traits
 	for _, trait := range extraction.Traits {
 		existingTrait, _ := uc.storage.GetTraitByName(ctx, request.AgentID, trait.Name)
 		if existingTrait != nil {
-			// Fusionner avec le trait existant
 			existingTrait.Merge(trait)
 			if err := uc.storage.UpdateTrait(ctx, existingTrait); err != nil {
-				fmt.Printf("Warning: failed to update trait: %v\n", err)
+				slog.Warn("failed to update trait", "error", err)
 			}
 		} else {
 			if err := uc.storage.StoreTrait(ctx, trait); err != nil {
-				fmt.Printf("Warning: failed to store trait: %v\n", err)
+				slog.Warn("failed to store trait", "error", err)
 			}
 		}
 	}
-	
-	// 6. Sauvegarder le snapshot
+
+	// 6. Store snapshot
 	if err := uc.storage.StoreIdentity(ctx, newIdentity); err != nil {
 		return nil, fmt.Errorf("failed to store identity: %w", err)
 	}
-	
+
 	return newIdentity, nil
 }
 
-// CaptureFromSingleInteraction capture l'identité depuis une seule interaction
-// Utilisé pour les mises à jour incrémentales.
+// CaptureFromSingleInteraction captures identity from a single interaction.
+// Used for incremental updates.
 func (uc *IdentityCaptureUseCase) CaptureFromSingleInteraction(ctx context.Context, agentID, agentResponse, userMessage, modelID string) error {
 	request := &valueobjects.SoulCaptureRequest{
 		AgentID:        agentID,
