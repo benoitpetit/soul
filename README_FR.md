@@ -8,7 +8,7 @@
 
   [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-  [![Version](https://img.shields.io/badge/Version-0.0.4-blue?style=flat-square)]()
+  [![Version](https://img.shields.io/badge/Version-0.0.5-blue?style=flat-square)]()
   [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?style=flat-square)]()
 
   *100% Local • Déterministe • Identité Versionnée • Agnostique au Modèle*
@@ -195,8 +195,9 @@ soul:
 
   recall:
     default_budget_tokens: 1000
-    enrich_with_mira_memories: true
-    max_mira_memories: 5
+    # enrich_with_mira_memories et max_mira_memories sont documentés mais PAS ENCORE IMPLÉMENTÉS.
+    # enrich_with_mira_memories: true
+    # max_mira_memories: 5
 ```
 
 ---
@@ -366,7 +367,7 @@ Les noms d'outils ne rentrent jamais en collision - MIRA utilise le prefixe `mir
 
 SOUL calcule la derive en comparant l'instantane actuel contre N versions precedentes :
 
-- Distance par dimension : profil vocal, traits de personnalite, systeme de valeurs, ton emotionnel
+- Distance par dimension : profil vocal, traits de personnalite, systeme de valeurs, ton emotionnel (4 des 6 dimensions ; le style de communication et la signature comportementale ne sont pas encore surveilles pour la derive)
 - Score moyen de `DriftScore` a travers les dimensions
 - Alerte quand `DriftScore > threshold` (defaut : 0.3)
 
@@ -397,6 +398,10 @@ Go 1.23.2 - SQLite via `mattn/go-sqlite3` - MCP via `mark3labs/mcp-go v0.2.0`
 ---
 
 ## Changelog
+
+### v0.0.5 (2026-04-24)
+
+- 🚀 Nouvelle version 0.0.5
 
 ### v0.0.4 (2026-04-24)
 

@@ -143,7 +143,7 @@ func wireSoulApplication(storage *sqlite.SoulSQLiteStorage, config *SoulConfig) 
 	// Services
 	extractor := extraction.NewSoulExtractorService()
 	composer := composition.NewSoulComposerService()
-	driftDetector := drift.NewSoulDriftDetector(config.DriftThreshold)
+	driftDetector := drift.NewSoulDriftDetector(config.DriftThreshold).WithStorage(storage)
 	swapHandler := modelswaphandler.NewSoulModelSwapHandler()
 	merger := modelswaphandler.NewSoulMergerService()
 	

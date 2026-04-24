@@ -4,16 +4,20 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
+	"github.com/benoitpetit/soul/internal/usecases/ports"
 )
 
 // SoulDriftDetector implémente ports.IdentityDriftDetector
 // Utilise des algorithmes de comparaison pour détecter la dérive identitaire.
 type SoulDriftDetector struct {
 	threshold float64 // Seuil de détection
+	storage   ports.IdentityRepository // Stockage optionnel pour le monitoring continu
+	mu        sync.RWMutex
 }
 
 // NewSoulDriftDetector crée un nouveau détecteur de dérive
@@ -24,6 +28,15 @@ func NewSoulDriftDetector(threshold float64) *SoulDriftDetector {
 	return &SoulDriftDetector{
 		threshold: threshold,
 	}
+}
+
+// WithStorage injecte un repository d'identité pour activer le monitoring continu réel.
+// Sans stockage, MonitorContinuously fonctionne en mode stub.
+func (d *SoulDriftDetector) WithStorage(storage ports.IdentityRepository) *SoulDriftDetector {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.storage = storage
+	return d
 }
 
 // DetectDrift compare deux snapshots et détecte la dérive
@@ -180,21 +193,24 @@ func (d *SoulDriftDetector) DetectDiffusion(ctx context.Context, identity *entit
 	return isDiffused, diffusionScore, nil
 }
 
-// MonitorContinuously periodically checks for identity drift.
-// The monitoring loop runs until the context is cancelled.
-// Drift reports are sent on the returned channel when significant drift is detected.
-//
-// NOTE: This implementation is a stub that logs monitoring ticks.
-// For production, integrate with storage to fetch snapshots and call DetectDrift.
+// MonitorContinuously surveille en continu la dérive identitaire d'un agent.
+// Si un stockage est configuré (via WithStorage), la boucle compare périodiquement
+// le dernier snapshot avec la version précédente et émet un rapport quand une dérive
+// significative est détectée. Sinon, elle fonctionne en mode stub (logs uniquement).
 func (d *SoulDriftDetector) MonitorContinuously(ctx context.Context, agentID string, threshold float64) (<-chan valueobjects.IdentityDriftReport, error) {
 	if threshold <= 0 {
 		threshold = d.threshold
 	}
 
+	d.mu.RLock()
+	storage := d.storage
+	d.mu.RUnlock()
+
 	slog.Info("starting continuous drift monitoring",
 		"agent_id", agentID,
 		"threshold", threshold,
-		"interval", "30s")
+		"interval", "30s",
+		"storage_enabled", storage != nil)
 
 	reports := make(chan valueobjects.IdentityDriftReport, 10)
 
@@ -202,13 +218,64 @@ func (d *SoulDriftDetector) MonitorContinuously(ctx context.Context, agentID str
 		defer close(reports)
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
+
+		// Cache du dernier snapshot connu pour comparer
+		var lastSnapshot *entities.IdentitySnapshot
+
+		if storage != nil {
+			// Récupération initiale
+			snap, err := storage.GetLatestIdentity(ctx, agentID)
+			if err == nil && snap != nil {
+				lastSnapshot = snap
+			}
+		}
+
 		for {
 			select {
 			case <-ctx.Done():
 				slog.Info("stopping continuous drift monitoring", "agent_id", agentID)
 				return
 			case <-ticker.C:
-				slog.Debug("drift monitoring tick", "agent_id", agentID)
+				if storage == nil || lastSnapshot == nil {
+					slog.Debug("drift monitoring tick (no storage or baseline)", "agent_id", agentID)
+					continue
+				}
+
+				current, err := storage.GetLatestIdentity(ctx, agentID)
+				if err != nil {
+					slog.Warn("monitoring failed to fetch latest identity", "agent_id", agentID, "error", err)
+					continue
+				}
+				if current == nil {
+					continue
+				}
+
+				// Éviter de comparer un snapshot avec lui-même
+				if current.ID == lastSnapshot.ID {
+					continue
+				}
+
+				report, err := d.DetectDrift(ctx, lastSnapshot, current)
+				if err != nil {
+					slog.Warn("monitoring drift detection failed", "agent_id", agentID, "error", err)
+					continue
+				}
+
+				// Mettre à jour la baseline même si la dérive n'est pas significative
+				lastSnapshot = current
+
+				if report.IsSignificant {
+					slog.Info("significant drift detected in monitoring",
+						"agent_id", agentID,
+						"drift_score", report.DriftScore,
+						"from_version", report.PreviousVersion,
+						"to_version", report.CurrentVersion)
+					select {
+					case reports <- *report:
+					case <-ctx.Done():
+						return
+					}
+				}
 			}
 		}
 	}()

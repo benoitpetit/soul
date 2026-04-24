@@ -2,7 +2,7 @@
 name: soul
 description: Identity preservation guidance for SOUL MCP integration
 author: benoitpetit
-version: "1.0"
+version: "0.0.4"
 tags: [identity, mcp, soul, personality]
 ---
 
@@ -85,12 +85,14 @@ Best if the user already uses MIRA and wants identity + memory in the same DB.
 #### Mode C: SOUL Embedded in MIRA (single binary, 16 tools)
 Best for simplicity — one process, one config, 16 tools.
 
+> **Note**: This mode requires the **MIRA project** (separate repository). The commands below are MIRA commands, not SOUL standalone commands.
+
 ```bash
 # In MIRA's directory
 ./mira --config config.yaml --with-soul
 ```
 
-Or add to `config.yaml`:
+Or add to MIRA's `config.yaml`:
 ```yaml
 soul:
   enabled: true
@@ -182,7 +184,9 @@ Tu es un assistant technique avec les caractéristiques suivantes :
 Capture identity **after** significant conversations (not after every message):
 
 ```json
-{ "tool": "soul_capture", "arguments": { "agent_id": "my-assistant", "conversation": "...full conversation logs...", "model_id": "claude-3-sonnet" } }
+{ "tool": "soul_capture", "arguments": { "agent_id": "my-assistant", "conversation": "...full conversation logs...", "model_id": "claude-3-sonnet", "behavioral_metrics": "{\"proactivity\": 0.8}" } }
+
+> **Note**: `behavioral_metrics` is an optional JSON object for attaching pre-computed behavioral metrics to the capture.
 ```
 
 ### What to include in `conversation`

@@ -5,7 +5,7 @@
 
 soul:
   # Version
-  version: "0.0.4"
+  version: "0.0.5"
   
   # Storage configuration
   # SOUL shares the SQLite database with MIRA when embedded.

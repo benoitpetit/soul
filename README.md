@@ -8,7 +8,7 @@
 
   [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-  [![Version](https://img.shields.io/badge/Version-0.0.4-blue?style=flat-square)]()
+  [![Version](https://img.shields.io/badge/Version-0.0.5-blue?style=flat-square)]()
   [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?style=flat-square)]()
 
   *100% Local • Deterministic • Versioned Identity • Model-Agnostic*
@@ -195,8 +195,9 @@ soul:
 
   recall:
     default_budget_tokens: 1000
-    enrich_with_mira_memories: true
-    max_mira_memories: 5
+    # enrich_with_mira_memories and max_mira_memories are documented but NOT YET IMPLEMENTED.
+    # enrich_with_mira_memories: true
+    # max_mira_memories: 5
 ```
 
 ---
@@ -366,7 +367,7 @@ Tool names never collide - MIRA tools use `mira_` prefix, SOUL tools use `soul_`
 
 SOUL computes drift by comparing the current snapshot against N previous versions:
 
-- Per-dimension distance: voice profile, personality traits, value system, emotional tone
+- Per-dimension distance: voice profile, personality traits, value system, emotional tone (4 of 6 dimensions; communication style and behavioral signature are not yet monitored for drift)
 - Average `DriftScore` across dimensions
 - Alert when `DriftScore > threshold` (default: 0.3)
 
@@ -397,6 +398,10 @@ Go 1.23.2 - SQLite via `mattn/go-sqlite3` - MCP via `mark3labs/mcp-go v0.2.0`
 ---
 
 ## Changelog
+
+### v0.0.5 (2026-04-24)
+
+- 🚀 New version 0.0.5
 
 ### v0.0.4 (2026-04-24)
 
