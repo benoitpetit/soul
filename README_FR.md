@@ -1,16 +1,42 @@
 <div align="center">
   <img src="./logo.png" alt="SOUL Logo" width="800">
-  
-# SOUL - System for Observed Unique Legacy
 
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
-[![Version](https://img.shields.io/badge/Version-0.0.3-blue?style=flat-square)]()
+  # SOUL
+  ### System for Observed Unique Legacy
 
-**SOUL** (System for Observed Unique Legacy) est une **extension de preservation d'identite pour les agents LLM**. Elle capture, stocke et recall (rappelle) la personnalite, la voix et les valeurs des agents IA a travers les sessions et les changements de modele.
+  **Système de Préservation d'Identité pour Agents LLM**
 
-Là où [**MIRA**](https://github.com/benoitpetit/mira) repond *"Qu'est-ce que l'agent sait ?"*, SOUL repond *"Qui est l'agent ?"*
+  [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
+  [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+  [![Version](https://img.shields.io/badge/Version-0.0.4-blue?style=flat-square)]()
+  [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?style=flat-square)]()
+
+  *100% Local • Déterministe • Identité Versionnée • Agnostique au Modèle*
+
+  [Changelog](#changelog) • [Skill](SKILL.md) • [English](README.md) • [Intégration MIRA](https://github.com/benoitpetit/mira)
+
 </div>
+
+---
+
+## Table des matières
+
+- [Relation avec MIRA](#relation-avec-mira)
+- [Pourquoi SOUL ?](#pourquoi-soul-)
+- [Architecture](#architecture)
+- [Modèle d'identité](#modele-didentite)
+- [Schéma de base de données](#schema-de-base-de-donnees)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Utilisation CLI](#utilisation-cli)
+- [Outils MCP](#outils-mcp)
+- [Déploiement](#deploiement)
+- [Détection de dérive](#detection-de-derive)
+- [Tests](#tests)
+- [Module](#module)
+- [Changelog](#changelog)
+
+---
 
 ## Relation avec MIRA
 
@@ -367,3 +393,17 @@ github.com/benoitpetit/soul
 **Depot :** https://github.com/benoitpetit/soul
 
 Go 1.23.2 - SQLite via `mattn/go-sqlite3` - MCP via `mark3labs/mcp-go v0.2.0`
+
+---
+
+## Changelog
+
+### v0.0.4 (2026-04-24)
+
+- **Configuration unifiée en mode intégré** : Ajout de `NewApplicationWithDBAndConfig` pour que MIRA puisse transmettre une `SoulConfig` complète lors de l'intégration de SOUL. Le mode intégré supporte désormais les mêmes options de réglage que le mode standalone (seuil de dérive, budget de rappel, confiance d'extraction, etc.).
+- **Expansion de l'API publique** : Exposition des alias `soul.Config` et `soul.DefaultConfig()` pour les modules externes.
+- **Script de pré-publication** : Ajout de `scripts/prepublish.sh` pour l'automatisation du bump de version, build, tests et benchmarks.
+
+### v0.0.3 (2026-04-17)
+
+- Version stable initiale avec serveur MCP, capture d'identité, détection de dérive, gestion du changement de modèle et suivi d'évolution.

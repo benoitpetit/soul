@@ -1,18 +1,42 @@
 <div align="center">
   <img src="./logo.png" alt="SOUL Logo" width="800">
-  
-# SOUL 
-### System for Observed Unique Legacy
 
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
-[![Version](https://img.shields.io/badge/Version-0.0.3-blue?style=flat-square)]()
+  # SOUL
+  ### System for Observed Unique Legacy
 
+  **Identity Preservation System for LLM Agents**
 
-[**SOUL**](https://github.com/benoitpetit/soul) is an **identity preservation extension for LLM agents**. It captures, stores, and recalls the personality, voice, and values of AI agents across sessions and model changes.
+  [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
+  [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+  [![Version](https://img.shields.io/badge/Version-0.0.4-blue?style=flat-square)]()
+  [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?style=flat-square)]()
 
-Where [**MIRA**](https://github.com/benoitpetit/mira) answers *"What does the agent know?"*, SOUL answers *"Who is the agent?"*
+  *100% Local • Deterministic • Versioned Identity • Model-Agnostic*
+
+  [Changelog](#changelog) • [Skill](SKILL.md) • [Français](README_FR.md) • [MIRA Integration](https://github.com/benoitpetit/mira)
+
 </div>
+
+---
+
+## Table of Contents
+
+- [Relationship with MIRA](#relationship-with-mira)
+- [Why SOUL?](#why-soul)
+- [Architecture](#architecture)
+- [Identity Model](#identity-model)
+- [Database Schema](#database-schema)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [CLI Usage](#cli-usage)
+- [MCP Tools](#mcp-tools)
+- [Deployment](#deployment)
+- [Drift Detection](#drift-detection)
+- [Testing](#testing)
+- [Module](#module)
+- [Changelog](#changelog)
+
+---
 
 ## Relationship with MIRA
 
@@ -369,3 +393,17 @@ github.com/benoitpetit/soul
 **Repository:** https://github.com/benoitpetit/soul
 
 Go 1.23.2 - SQLite via `mattn/go-sqlite3` - MCP via `mark3labs/mcp-go v0.2.0`
+
+---
+
+## Changelog
+
+### v0.0.4 (2026-04-24)
+
+- **Unified embedded configuration**: Added `NewApplicationWithDBAndConfig` so MIRA can pass a full `SoulConfig` when embedding SOUL. Embedded mode now supports the same tuning options as standalone mode (drift threshold, recall budget, extraction confidence, etc.).
+- **Public API expansion**: Exposed `soul.Config` and `soul.DefaultConfig()` aliases for external modules.
+- **Prepublish script**: Added `scripts/prepublish.sh` for automated version bump, build, test, and benchmark workflow.
+
+### v0.0.3 (2026-04-17)
+
+- Initial stable release with MCP server, identity capture, drift detection, model swap handling, and evolution tracking.

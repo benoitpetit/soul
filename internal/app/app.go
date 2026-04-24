@@ -115,14 +115,27 @@ func NewSoulApplication(config *SoulConfig) (*SoulApplication, error) {
 
 // NewSoulApplicationWithDB crée l'application SOUL en réutilisant une connexion *sql.DB existante.
 // Utilisé quand SOUL est embarqué dans MIRA — la connexion n'est PAS fermée par Close().
+// Utilise la configuration par défaut. Pour passer une configuration personnalisée, utilisez NewSoulApplicationWithDBAndConfig.
 func NewSoulApplicationWithDB(db *sql.DB) (*SoulApplication, error) {
+	return NewSoulApplicationWithDBAndConfig(db, nil)
+}
+
+// NewSoulApplicationWithDBAndConfig crée l'application SOUL en réutilisant une connexion *sql.DB existante
+// avec une configuration personnalisée.
+// Utilisé quand SOUL est embarqué dans MIRA — la connexion n'est PAS fermée par Close().
+// Si config est nil, les valeurs par défaut sont utilisées.
+func NewSoulApplicationWithDBAndConfig(db *sql.DB, config *SoulConfig) (*SoulApplication, error) {
+	if config == nil {
+		config = DefaultConfig()
+	}
+
 	// 1. Storage — réutilise la connexion MIRA (ownsDB = false)
 	storage, err := sqlite.NewSoulSQLiteStorageFromDB(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
-	
-	return wireSoulApplication(storage, DefaultConfig())
+
+	return wireSoulApplication(storage, config)
 }
 
 // wireSoulApplication câble les services et use cases à partir d'un storage déjà initialisé.
