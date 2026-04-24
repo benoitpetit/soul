@@ -8,7 +8,7 @@
 
   [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-  [![Version](https://img.shields.io/badge/Version-0.0.5-blue?style=flat-square)]()
+  [![Version](https://img.shields.io/badge/Version-0.0.6-blue?style=flat-square)]()
   [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?style=flat-square)]()
 
   *100% Local • Déterministe • Identité Versionnée • Agnostique au Modèle*
@@ -398,6 +398,10 @@ Go 1.23.2 - SQLite via `mattn/go-sqlite3` - MCP via `mark3labs/mcp-go v0.2.0`
 ---
 
 ## Changelog
+
+### v0.0.6 (2026-04-24)
+
+- 🚀 Nouvelle version 0.0.6
 
 ### v0.0.5 (2026-04-24)
 

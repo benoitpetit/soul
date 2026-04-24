@@ -322,7 +322,7 @@ func (c *Controller) Call(ctx context.Context, name string, arguments map[string
 // Serve starts the SOUL MCP server over stdio (same pattern as MIRA).
 // Blocks until the transport closes.
 func Serve(a *app.SoulApplication) error {
-	s := server.NewDefaultServer("soul", "0.0.4")
+	s := server.NewDefaultServer("soul", "0.0.5")
 	ctrl := NewController(a)
 	ctrl.RegisterTools(s)
 	return server.ServeStdio(s)

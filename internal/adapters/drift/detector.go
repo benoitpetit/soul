@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -140,8 +142,18 @@ func (d *SoulDriftDetector) DetectDrift(ctx context.Context, previous, current *
 	if dimensionCount > 0 {
 		report.DriftScore = totalDrift / float64(dimensionCount)
 	}
-	
-	report.IsSignificant = report.DriftScore > d.threshold
+
+	// Seuil adaptatif basé sur la distribution des scores de chaque dimension
+	// (porté depuis MIRA : IQR / Elbow / MeanStddev)
+	adaptiveThreshold := d.threshold
+	if dimensionCount >= 2 {
+		dimensionScores := make([]float64, 0, dimensionCount)
+		for _, dim := range report.DriftDimensions {
+			dimensionScores = append(dimensionScores, dim.Change)
+		}
+		adaptiveThreshold = computeAdaptiveThreshold(dimensionScores, "iqr")
+	}
+	report.IsSignificant = report.DriftScore > adaptiveThreshold
 	
 	if report.IsSignificant {
 		report.Recommendations = append(report.Recommendations,
@@ -287,6 +299,115 @@ func (d *SoulDriftDetector) MonitorContinuously(ctx context.Context, agentID str
 func (d *SoulDriftDetector) CalculateIdentityVector(ctx context.Context, identity *entities.IdentitySnapshot) (*entities.IdentityDimensionVector, error) {
 	vector := entities.FromIdentitySnapshot(identity)
 	return vector, nil
+}
+
+// --- Adaptive Threshold Helpers (ported from MIRA) ---
+
+func percentile(sorted []float64, p float64) float64 {
+	if len(sorted) == 0 {
+		return 0
+	}
+	if len(sorted) == 1 {
+		return sorted[0]
+	}
+	index := p / 100.0 * float64(len(sorted)-1)
+	lower := int(math.Floor(index))
+	upper := int(math.Ceil(index))
+	if lower == upper {
+		return sorted[lower]
+	}
+	weight := index - float64(lower)
+	return sorted[lower]*(1-weight) + sorted[upper]*weight
+}
+
+func adaptiveThresholdIQR(scores []float64) float64 {
+	if len(scores) < 3 {
+		return 0.3
+	}
+	sorted := make([]float64, len(scores))
+	copy(sorted, scores)
+	sort.Float64s(sorted)
+	q1 := percentile(sorted, 25)
+	q3 := percentile(sorted, 75)
+	iqr := q3 - q1
+	threshold := q1 - 1.5*iqr
+	if threshold < 0.15 {
+		threshold = 0.15
+	}
+	if threshold > 0.75 {
+		threshold = 0.75
+	}
+	return threshold
+}
+
+func adaptiveThresholdElbow(scores []float64) float64 {
+	if len(scores) < 3 {
+		return 0.3
+	}
+	sorted := make([]float64, len(scores))
+	copy(sorted, scores)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] > sorted[j] })
+	derivatives := make([]float64, len(sorted)-1)
+	for i := 0; i < len(sorted)-1; i++ {
+		derivatives[i] = sorted[i] - sorted[i+1]
+	}
+	mean := 0.0
+	for _, d := range derivatives {
+		mean += d
+	}
+	mean /= float64(len(derivatives))
+	variance := 0.0
+	for _, d := range derivatives {
+		variance += (d - mean) * (d - mean)
+	}
+	stddev := math.Sqrt(variance / float64(len(derivatives)))
+	cutoff := mean + stddev
+	for i, d := range derivatives {
+		if d > cutoff {
+			if i+1 < len(sorted) {
+				return sorted[i+1]
+			}
+			return sorted[i]
+		}
+	}
+	return sorted[len(sorted)-1]
+}
+
+func adaptiveThresholdMeanStddev(scores []float64) float64 {
+	if len(scores) == 0 {
+		return 0.3
+	}
+	mean := 0.0
+	for _, s := range scores {
+		mean += s
+	}
+	mean /= float64(len(scores))
+	variance := 0.0
+	for _, s := range scores {
+		variance += (s - mean) * (s - mean)
+	}
+	stddev := math.Sqrt(variance / float64(len(scores)))
+	threshold := mean - stddev
+	if threshold < 0.15 {
+		threshold = 0.15
+	}
+	if threshold > 0.75 {
+		threshold = 0.75
+	}
+	return threshold
+}
+
+func computeAdaptiveThreshold(scores []float64, method string) float64 {
+	switch method {
+	case "iqr":
+		return adaptiveThresholdIQR(scores)
+	case "elbow":
+		return adaptiveThresholdElbow(scores)
+	case "mean_stddev":
+		return adaptiveThresholdMeanStddev(scores)
+	default:
+		return adaptiveThresholdIQR(scores)
+	}
 }
 
 // --- Helpers de comparaison ---

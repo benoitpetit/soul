@@ -51,18 +51,32 @@ func (uc *IdentityCaptureUseCase) CaptureFromConversation(ctx context.Context, r
 		}
 	}
 
-	// 5. Store/merge traits
-	for _, trait := range extraction.Traits {
-		existingTrait, _ := uc.storage.GetTraitByName(ctx, request.AgentID, trait.Name)
-		if existingTrait != nil {
-			existingTrait.Merge(trait)
-			if err := uc.storage.UpdateTrait(ctx, existingTrait); err != nil {
-				slog.Warn("failed to update trait", "error", err)
+	// 5. Store/merge traits (batched: 2 queries total instead of 2N+1)
+	if len(extraction.Traits) > 0 {
+		traitNames := make([]string, len(extraction.Traits))
+		for i, t := range extraction.Traits {
+			traitNames[i] = t.Name
+		}
+		existingTraits, err := uc.storage.GetTraitsByNames(ctx, request.AgentID, traitNames)
+		if err != nil {
+			slog.Warn("failed to batch-fetch traits", "error", err)
+		}
+		existingMap := make(map[string]*entities.PersonalityTrait, len(existingTraits))
+		for _, et := range existingTraits {
+			existingMap[et.Name] = et
+		}
+
+		var traitsToUpsert []*entities.PersonalityTrait
+		for _, trait := range extraction.Traits {
+			if existing, ok := existingMap[trait.Name]; ok {
+				existing.Merge(trait)
+				traitsToUpsert = append(traitsToUpsert, existing)
+			} else {
+				traitsToUpsert = append(traitsToUpsert, trait)
 			}
-		} else {
-			if err := uc.storage.StoreTrait(ctx, trait); err != nil {
-				slog.Warn("failed to store trait", "error", err)
-			}
+		}
+		if err := uc.storage.UpsertTraits(ctx, request.AgentID, traitsToUpsert); err != nil {
+			slog.Warn("failed to batch-upsert traits", "error", err)
 		}
 	}
 

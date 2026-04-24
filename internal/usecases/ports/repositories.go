@@ -53,6 +53,9 @@ type TraitRepository interface {
 	
 	// GetTraitByName récupère un trait par nom pour un agent
 	GetTraitByName(ctx context.Context, agentID, name string) (*entities.PersonalityTrait, error)
+
+	// GetTraitsByNames récupère plusieurs traits par noms en une seule requête (batch)
+	GetTraitsByNames(ctx context.Context, agentID string, names []string) ([]*entities.PersonalityTrait, error)
 	
 	// GetAllTraits récupère tous les traits d'un agent
 	GetAllTraits(ctx context.Context, agentID string) ([]*entities.PersonalityTrait, error)
@@ -62,6 +65,9 @@ type TraitRepository interface {
 	
 	// UpdateTrait met à jour un trait existant (fusion avec nouvelles observations)
 	UpdateTrait(ctx context.Context, trait *entities.PersonalityTrait) error
+
+	// UpsertTraits met à jour ou insère plusieurs traits en une seule transaction (batch)
+	UpsertTraits(ctx context.Context, agentID string, traits []*entities.PersonalityTrait) error
 	
 	// GetWellEstablishedTraits récupère les traits bien établis (confiance élevée)
 	GetWellEstablishedTraits(ctx context.Context, agentID string, minConfidence float64) ([]*entities.PersonalityTrait, error)

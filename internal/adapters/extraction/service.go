@@ -260,10 +260,35 @@ func (s *SoulExtractorService) findPatternOccurrences(pattern TraitPattern, agen
 	return occurrences, evidence
 }
 
+func isLetter(r byte) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+}
+
 func countWordBoundary(text, word string) int {
-	// Version simple mais efficace : cherche le mot entouré de non-lettres
-	re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(word) + `\b`)
-	return len(re.FindAllStringIndex(text, -1))
+	if word == "" {
+		return 0
+	}
+	lowerText := strings.ToLower(text)
+	lowerWord := strings.ToLower(word)
+	count := 0
+	start := 0
+	for {
+		idx := strings.Index(lowerText[start:], lowerWord)
+		if idx == -1 {
+			break
+		}
+		abs := start + idx
+		left := abs == 0 || !isLetter(lowerText[abs-1])
+		right := abs+len(lowerWord) == len(lowerText) || !isLetter(lowerText[abs+len(lowerWord)])
+		if left && right {
+			count++
+		}
+		start = abs + 1
+		if start >= len(lowerText) {
+			break
+		}
+	}
+	return count
 }
 
 func (s *SoulExtractorService) boostCooccurringTraits(observations []*entities.TraitObservation, sentences []string) []*entities.TraitObservation {

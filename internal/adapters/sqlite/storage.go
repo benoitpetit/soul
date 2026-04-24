@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
@@ -382,6 +383,34 @@ func (s *SoulSQLiteStorage) GetTraitByName(ctx context.Context, agentID, name st
 	return s.scanTrait(ctx, query, agentID, name)
 }
 
+func (s *SoulSQLiteStorage) GetTraitsByNames(ctx context.Context, agentID string, names []string) ([]*entities.PersonalityTrait, error) {
+	if len(names) == 0 {
+		return []*entities.PersonalityTrait{}, nil
+	}
+	// Build IN clause with placeholders
+	placeholders := make([]string, len(names))
+	args := make([]interface{}, 0, len(names)+1)
+	args = append(args, agentID)
+	for i, name := range names {
+		placeholders[i] = "?"
+		args = append(args, name)
+	}
+	query := `
+		SELECT id, agent_id, name, category, intensity, confidence, evidence_count,
+		       first_observed, last_observed, last_evidence, contexts, consistency
+		FROM soul_traits 
+		WHERE agent_id = ? AND name IN (` + fmt.Sprintf("%s", placeholders) + `)
+	`
+	// Need to join placeholders
+	query = fmt.Sprintf(`
+		SELECT id, agent_id, name, category, intensity, confidence, evidence_count,
+		       first_observed, last_observed, last_evidence, contexts, consistency
+		FROM soul_traits 
+		WHERE agent_id = ? AND name IN (%s)
+	`, strings.Join(placeholders, ", "))
+	return s.scanTraits(ctx, query, args...)
+}
+
 func (s *SoulSQLiteStorage) GetAllTraits(ctx context.Context, agentID string) ([]*entities.PersonalityTrait, error) {
 	query := `
 		SELECT id, agent_id, name, category, intensity, confidence, evidence_count,
@@ -423,6 +452,52 @@ func (s *SoulSQLiteStorage) UpdateTrait(ctx context.Context, trait *entities.Per
 	)
 	
 	return err
+}
+
+func (s *SoulSQLiteStorage) UpsertTraits(ctx context.Context, agentID string, traits []*entities.PersonalityTrait) error {
+	if len(traits) == 0 {
+		return nil
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin upsert transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	insertStmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO soul_traits 
+		(id, agent_id, name, category, intensity, confidence, evidence_count,
+		 first_observed, last_observed, last_evidence, contexts, consistency)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			intensity = excluded.intensity,
+			confidence = excluded.confidence,
+			evidence_count = excluded.evidence_count,
+			last_observed = excluded.last_observed,
+			last_evidence = excluded.last_evidence,
+			contexts = excluded.contexts,
+			consistency = excluded.consistency
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare upsert statement: %w", err)
+	}
+	defer insertStmt.Close()
+
+	for _, trait := range traits {
+		contextsJSON, _ := json.Marshal(trait.Contexts)
+		_, err := insertStmt.ExecContext(ctx,
+			trait.ID.String(), agentID, trait.Name, string(trait.Category),
+			trait.Intensity, trait.Confidence, trait.EvidenceCount,
+			trait.FirstObserved, trait.LastObserved, trait.LastEvidence,
+			string(contextsJSON), trait.Consistency,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to upsert trait %s: %w", trait.Name, err)
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (s *SoulSQLiteStorage) GetWellEstablishedTraits(ctx context.Context, agentID string, minConfidence float64) ([]*entities.PersonalityTrait, error) {
