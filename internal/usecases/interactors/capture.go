@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
@@ -151,9 +152,112 @@ func (uc *IdentityCaptureUseCase) buildSnapshotFromExtraction(
 		snapshot.WithTraits(traitSlice...)
 	}
 
+	// Fallback: if heuristic extraction yielded no traits but behavioral metrics
+	// were provided by the agent runtime (e.g. b0p), synthesize traits from them.
+	if len(extraction.Traits) == 0 && len(request.BehavioralMetrics) > 0 {
+		if bmTraits := convertBehavioralMetricsToTraits(request.AgentID, request.BehavioralMetrics); len(bmTraits) > 0 {
+			traitSlice := make([]entities.PersonalityTrait, len(bmTraits))
+			for i, t := range bmTraits {
+				traitSlice[i] = *t
+			}
+			snapshot.WithTraits(traitSlice...)
+		}
+	}
+
 	if len(request.BehavioralMetrics) > 0 {
 		snapshot.WithBehavioralMetrics(request.BehavioralMetrics)
 	}
 	
 	return snapshot
+}
+
+// convertBehavioralMetricsToTraits transforms runtime behavioral metrics (from b0p)
+// into PersonalityTrait entities that SOUL can track. This bridges the gap when
+// heuristic extraction fails on code-heavy conversations.
+func convertBehavioralMetricsToTraits(agentID string, metrics map[string]interface{}) []*entities.PersonalityTrait {
+	var traits []*entities.PersonalityTrait
+	now := time.Now()
+
+	// Helper to create a trait with moderate confidence
+	mk := func(name string, category entities.TraitCategory, intensity float64, evidence string) *entities.PersonalityTrait {
+		t := entities.NewPersonalityTrait(name, category, intensity)
+		t.AgentID = agentID
+		t.Confidence = 0.6 // runtime metrics are reliable but single-observation
+		t.LastEvidence = evidence
+		t.FirstObserved = now
+		t.LastObserved = now
+		return t
+	}
+
+	// Preferred tools → tool-oriented trait
+	if pt, ok := metrics["preferred_tools"].([]interface{}); ok && len(pt) > 0 {
+		var names []string
+		for _, v := range pt {
+			if s, ok := v.(string); ok {
+				names = append(names, s)
+			}
+		}
+		if len(names) > 0 {
+			t := mk("tool-oriented", entities.TraitCognitive, 0.7,
+				fmt.Sprintf("Prefers tools: %s", strings.Join(names, ", ")))
+			t.Contexts = append(t.Contexts, "tool_usage")
+			traits = append(traits, t)
+		}
+	}
+
+	// Success rate → precision / resilience
+	if sr, ok := metrics["success_rate"].(float64); ok {
+		if sr >= 0.8 {
+			t := mk("precise", entities.TraitCognitive, 0.8,
+				fmt.Sprintf("High success rate: %.0f%%", sr*100))
+			t.Contexts = append(t.Contexts, "execution")
+			traits = append(traits, t)
+		} else if sr >= 0.5 {
+			t := mk("resilient", entities.TraitEmotional, 0.6,
+				fmt.Sprintf("Moderate success rate: %.0f%%", sr*100))
+			t.Contexts = append(t.Contexts, "execution")
+			traits = append(traits, t)
+		}
+	}
+
+	// Resolution style → exploratory vs decisive
+	if style, ok := metrics["resolution_style"].(string); ok {
+		switch style {
+		case "exploratory":
+			t := mk("exploratory", entities.TraitCognitive, 0.75,
+				"Reads extensively before acting")
+			t.Contexts = append(t.Contexts, "investigation")
+			traits = append(traits, t)
+		case "direct":
+			t := mk("decisive", entities.TraitCognitive, 0.7,
+				"Acts directly when confident")
+			t.Contexts = append(t.Contexts, "execution")
+			traits = append(traits, t)
+		}
+	}
+
+	// Doubt score → cautious (high) or confident (low)
+	if ds, ok := metrics["doubt_score"].(float64); ok && ds > 0 {
+		if ds > 0.5 {
+			t := mk("cautious", entities.TraitEpistemic, 0.7,
+				fmt.Sprintf("High doubt score: %.2f", ds))
+			t.Contexts = append(t.Contexts, "self-assessment")
+			traits = append(traits, t)
+		} else {
+			t := mk("confident", entities.TraitEmotional, 0.6,
+				fmt.Sprintf("Low doubt score: %.2f", ds))
+			t.Contexts = append(t.Contexts, "self-assessment")
+			traits = append(traits, t)
+		}
+	}
+
+	// Total calls → active
+	if tc, ok := metrics["total_calls"].(float64); ok && tc > 5 {
+		t := mk("active", entities.TraitExpressive, 0.6,
+			fmt.Sprintf("Total tool calls: %.0f", tc))
+		t.Contexts = append(t.Contexts, "engagement")
+		traits = append(traits, t)
+	}
+
+	return traits
 }
