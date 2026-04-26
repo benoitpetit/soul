@@ -4,6 +4,7 @@ package interactors
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -190,23 +191,33 @@ func convertBehavioralMetricsToTraits(agentID string, metrics map[string]interfa
 	}
 
 	// Preferred tools → tool-oriented trait
+	// Handles both []interface{} (JSON default) and []string (Go native)
+	var toolNames []string
 	if pt, ok := metrics["preferred_tools"].([]interface{}); ok && len(pt) > 0 {
-		var names []string
 		for _, v := range pt {
 			if s, ok := v.(string); ok {
-				names = append(names, s)
+				toolNames = append(toolNames, s)
 			}
 		}
-		if len(names) > 0 {
-			t := mk("tool-oriented", entities.TraitCognitive, 0.7,
-				fmt.Sprintf("Prefers tools: %s", strings.Join(names, ", ")))
-			t.Contexts = append(t.Contexts, "tool_usage")
-			traits = append(traits, t)
-		}
+	} else if pt, ok := metrics["preferred_tools"].([]string); ok && len(pt) > 0 {
+		toolNames = pt
+	}
+	if len(toolNames) > 0 {
+		t := mk("tool-oriented", entities.TraitCognitive, 0.7,
+			fmt.Sprintf("Prefers tools: %s", strings.Join(toolNames, ", ")))
+		t.Contexts = append(t.Contexts, "tool_usage")
+		traits = append(traits, t)
 	}
 
 	// Success rate → precision / resilience
-	if sr, ok := metrics["success_rate"].(float64); ok {
+	// Handles both float64 (JSON default) and json.Number
+	var sr float64
+	if f, ok := metrics["success_rate"].(float64); ok {
+		sr = f
+	} else if n, ok := metrics["success_rate"].(json.Number); ok {
+		sr, _ = n.Float64()
+	}
+	if sr > 0 {
 		if sr >= 0.8 {
 			t := mk("precise", entities.TraitCognitive, 0.8,
 				fmt.Sprintf("High success rate: %.0f%%", sr*100))
@@ -237,7 +248,13 @@ func convertBehavioralMetricsToTraits(agentID string, metrics map[string]interfa
 	}
 
 	// Doubt score → cautious (high) or confident (low)
-	if ds, ok := metrics["doubt_score"].(float64); ok && ds > 0 {
+	var ds float64
+	if f, ok := metrics["doubt_score"].(float64); ok {
+		ds = f
+	} else if n, ok := metrics["doubt_score"].(json.Number); ok {
+		ds, _ = n.Float64()
+	}
+	if ds > 0 {
 		if ds > 0.5 {
 			t := mk("cautious", entities.TraitEpistemic, 0.7,
 				fmt.Sprintf("High doubt score: %.2f", ds))
@@ -252,7 +269,15 @@ func convertBehavioralMetricsToTraits(agentID string, metrics map[string]interfa
 	}
 
 	// Total calls → active
-	if tc, ok := metrics["total_calls"].(float64); ok && tc > 5 {
+	var tc float64
+	if f, ok := metrics["total_calls"].(float64); ok {
+		tc = f
+	} else if i, ok := metrics["total_calls"].(int); ok {
+		tc = float64(i)
+	} else if n, ok := metrics["total_calls"].(json.Number); ok {
+		tc, _ = n.Float64()
+	}
+	if tc > 5 {
 		t := mk("active", entities.TraitExpressive, 0.6,
 			fmt.Sprintf("Total tool calls: %.0f", tc))
 		t.Contexts = append(t.Contexts, "engagement")
