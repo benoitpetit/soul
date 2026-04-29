@@ -39,39 +39,54 @@ func (uc *ModelSwapUseCase) HandleModelSwap(ctx context.Context, agentID, previo
 	if err != nil {
 		return nil, fmt.Errorf("failed to handle model swap: %w", err)
 	}
-	
+
 	// 2. Récupérer l'identité actuelle
 	identity, err := uc.storage.GetLatestIdentity(ctx, agentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve identity: %w", err)
 	}
-	
+
 	if identity == nil {
 		return swap, fmt.Errorf("no identity found for agent %s, cannot reinforce", agentID)
 	}
-	
-	// 3. Renforcer l'identité (créer un nouveau snapshot post-swap)
+
+	// 3. Atomic transaction: snapshot + swap + notification
+	tx, err := uc.storage.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin swap transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	storageTx, err := uc.storage.WithTx(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transactional storage: %w", err)
+	}
+
+	// 3a. Renforcer l'identité (créer un nouveau snapshot post-swap)
 	reinforced, err := uc.handler.ReinforceIdentity(ctx, identity)
 	if err != nil {
 		fmt.Printf("Warning: identity reinforcement failed: %v\n", err)
 	} else {
-		// Sauvegarder l'identité renforcée
-		if err := uc.storage.StoreIdentity(ctx, reinforced); err != nil {
+		if err := storageTx.StoreIdentity(ctx, reinforced); err != nil {
 			fmt.Printf("Warning: failed to store reinforced identity: %v\n", err)
 		}
 	}
-	
-	// 4. Enregistrer que le renforcement a été appliqué
+
+	// 3b. Enregistrer que le renforcement a été appliqué
 	swap.ReinforcementApplied = true
-	if err := uc.storage.RecordModelSwap(ctx, swap); err != nil {
+	if err := storageTx.RecordModelSwap(ctx, swap); err != nil {
 		fmt.Printf("Warning: failed to record model swap: %v\n", err)
 	}
-	
-	// 5. Notifier MIRA du changement
-	if err := uc.storage.NotifyMiraOfIdentityChange(ctx, agentID, "model_swap"); err != nil {
+
+	// 3c. Notifier MIRA du changement
+	if err := storageTx.NotifyMiraOfIdentityChange(ctx, agentID, "model_swap"); err != nil {
 		fmt.Printf("Warning: failed to notify MIRA: %v\n", err)
 	}
-	
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit swap transaction: %w", err)
+	}
+
 	return swap, nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/benoitpetit/soul/internal/adapters/composition"
 	"github.com/benoitpetit/soul/internal/adapters/drift"
@@ -17,6 +18,8 @@ import (
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
 	"github.com/benoitpetit/soul/internal/usecases/interactors"
 	"github.com/benoitpetit/soul/internal/usecases/ports"
+	pkgports "github.com/benoitpetit/soul/pkg/ports"
+	"github.com/google/uuid"
 )
 
 // SoulApplication représente l'application SOUL complète
@@ -40,6 +43,14 @@ type SoulApplication struct {
 	EvolutionUC *interactors.IdentityEvolutionUseCase
 	MergeUC     *interactors.IdentityMergeUseCase
 	UpdateUC    *interactors.IdentityUpdateUseCase
+}
+
+// SetMiraProvider injecte le provider MIRA dans le stockage SOUL.
+// Doit être appelé avant tout usage des méthodes MiraBridge.
+func (app *SoulApplication) SetMiraProvider(p pkgports.MiraMemoryProvider) {
+	if s, ok := app.Storage.(*sqlite.SoulSQLiteStorage); ok {
+		s.SetMiraProvider(p)
+	}
 }
 
 // SoulConfig configure l'application SOUL
@@ -286,6 +297,85 @@ func (app *SoulApplication) PatchIdentity(ctx context.Context, agentID string, p
 	}
 	log.Printf("[SOUL] Patch applied: version %d, %d change(s)", snap.Version, len(result.ChangesApplied))
 	return snap, result, nil
+}
+
+// ListAgents returns all agent IDs with stored identities.
+func (app *SoulApplication) ListAgents(ctx context.Context) ([]string, error) {
+	return app.Storage.ListAgents(ctx)
+}
+
+// GenerateReinforcement generates a reinforcement prompt for an agent.
+func (app *SoulApplication) GenerateReinforcement(ctx context.Context, agentID string, driftReport *valueobjects.IdentityDriftReport) (*valueobjects.IdentityContextPrompt, error) {
+	log.Printf("[SOUL] Generating reinforcement for agent %s", agentID)
+	prompt, err := app.SwapUC.GetReinforcementPrompt(ctx, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("reinforcement generation failed: %w", err)
+	}
+	log.Printf("[SOUL] Reinforcement prompt generated: %d tokens", prompt.TokenEstimate)
+	return prompt, nil
+}
+
+// Evolve triggers identity evolution for an agent in a given direction.
+func (app *SoulApplication) Evolve(ctx context.Context, agentID string, direction string) (*entities.IdentitySnapshot, error) {
+	log.Printf("[SOUL] Evolving identity for agent %s (direction: %s)", agentID, direction)
+
+	// 1. Get latest identity
+	latest, err := app.Storage.GetLatestIdentity(ctx, agentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve identity: %w", err)
+	}
+	if latest == nil {
+		return nil, fmt.Errorf("no identity found for agent %s", agentID)
+	}
+
+	// 2. Create evolved snapshot
+	evolved := &entities.IdentitySnapshot{
+		ID:                  uuid.New(),
+		AgentID:             agentID,
+		Version:             latest.Version + 1,
+		CreatedAt:           time.Now(),
+		DerivedFromID:       &latest.ID,
+		PersonalityTraits:   latest.PersonalityTraits,
+		VoiceProfile:        latest.VoiceProfile,
+		CommunicationStyle:  latest.CommunicationStyle,
+		BehavioralSignature: latest.BehavioralSignature,
+		ValueSystem:         latest.ValueSystem,
+		EmotionalTone:       latest.EmotionalTone,
+		ConfidenceScore:     latest.ConfidenceScore,
+		ModelIdentifier:     direction,
+		SourceMemoriesCount: latest.SourceMemoriesCount,
+		LinkedMiraMemories:  latest.LinkedMiraMemories,
+		BehavioralMetrics:   latest.BehavioralMetrics,
+	}
+
+	// 3. Store evolved snapshot
+	if err := app.Storage.StoreIdentity(ctx, evolved); err != nil {
+		return nil, fmt.Errorf("failed to store evolved identity: %w", err)
+	}
+
+	// 4. Track evolution
+	if app.EvolutionUC != nil {
+		_, _ = app.EvolutionUC.TrackSnapshot(ctx, evolved)
+		_, _ = app.EvolutionUC.SuggestAdjustments(ctx, agentID)
+	}
+
+	log.Printf("[SOUL] Identity evolved: version %d", evolved.Version)
+	return evolved, nil
+}
+
+// Merge merges two agent identities using the given strategy.
+func (app *SoulApplication) Merge(ctx context.Context, agentA, agentB string, strategy *valueobjects.MergeStrategy) (*entities.IdentitySnapshot, error) {
+	log.Printf("[SOUL] Merging identities %s and %s", agentA, agentB)
+	if strategy == nil {
+		s := valueobjects.MergeSynthesize
+		strategy = &s
+	}
+	merged, err := app.MergeUC.MergeIdentities(ctx, agentA, agentB, *strategy)
+	if err != nil {
+		return nil, fmt.Errorf("merge failed: %w", err)
+	}
+	log.Printf("[SOUL] Identities merged: version %d", merged.Version)
+	return merged, nil
 }
 
 // Close ferme l'application proprement

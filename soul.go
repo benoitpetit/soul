@@ -6,7 +6,10 @@ import (
 	"database/sql"
 
 	internalapp "github.com/benoitpetit/soul/internal/app"
+	"github.com/benoitpetit/soul/internal/domain/entities"
+	"github.com/benoitpetit/soul/internal/domain/valueobjects"
 	internalmcp "github.com/benoitpetit/soul/internal/interfaces/mcp"
+	"github.com/benoitpetit/soul/internal/usecases/interactors"
 )
 
 // Application is the public alias for the SOUL application.
@@ -43,3 +46,26 @@ func NewApplicationWithDBAndConfig(db *sql.DB, config *Config) (*Application, er
 func NewController(a *Application) *Controller {
 	return internalmcp.NewController(a)
 }
+
+// Public type aliases for external consumers (e.g., Miracloud SaaS)
+
+// SoulCaptureRequest is a public alias.
+type SoulCaptureRequest = valueobjects.SoulCaptureRequest
+
+// SoulQuery is a public alias.
+type SoulQuery = valueobjects.SoulQuery
+
+// IdentityContextPrompt is a public alias.
+type IdentityContextPrompt = valueobjects.IdentityContextPrompt
+
+// IdentityDriftReport is a public alias.
+type IdentityDriftReport = valueobjects.IdentityDriftReport
+
+// IdentityPatch is a public alias.
+type IdentityPatch = valueobjects.IdentityPatch
+
+// UpdateResult is a public alias.
+type UpdateResult = interactors.UpdateResult
+
+// IdentitySnapshot is a public alias.
+type IdentitySnapshot = entities.IdentitySnapshot

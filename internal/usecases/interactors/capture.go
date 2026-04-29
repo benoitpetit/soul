@@ -46,20 +46,32 @@ func (uc *IdentityCaptureUseCase) CaptureFromConversation(ctx context.Context, r
 	// 3. Build new snapshot
 	newIdentity := uc.buildSnapshotFromExtraction(request, extraction, existingIdentity)
 
-	// 4. Store raw observations
+	// 4. Atomic transaction: observations + traits + snapshot
+	tx, err := uc.storage.BeginTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin capture transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	storageTx, err := uc.storage.WithTx(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transactional storage: %w", err)
+	}
+
+	// 4a. Store raw observations
 	for _, obs := range extraction.SourceObservations {
-		if err := uc.storage.StoreObservation(ctx, obs); err != nil {
+		if err := storageTx.StoreObservation(ctx, obs); err != nil {
 			slog.Warn("failed to store observation", "error", err)
 		}
 	}
 
-	// 5. Store/merge traits (batched: 2 queries total instead of 2N+1)
+	// 4b. Store/merge traits (batched)
 	if len(extraction.Traits) > 0 {
 		traitNames := make([]string, len(extraction.Traits))
 		for i, t := range extraction.Traits {
 			traitNames[i] = t.Name
 		}
-		existingTraits, err := uc.storage.GetTraitsByNames(ctx, request.AgentID, traitNames)
+		existingTraits, err := storageTx.GetTraitsByNames(ctx, request.AgentID, traitNames)
 		if err != nil {
 			slog.Warn("failed to batch-fetch traits", "error", err)
 		}
@@ -77,14 +89,25 @@ func (uc *IdentityCaptureUseCase) CaptureFromConversation(ctx context.Context, r
 				traitsToUpsert = append(traitsToUpsert, trait)
 			}
 		}
-		if err := uc.storage.UpsertTraits(ctx, request.AgentID, traitsToUpsert); err != nil {
+		if err := storageTx.UpsertTraits(ctx, request.AgentID, traitsToUpsert); err != nil {
 			slog.Warn("failed to batch-upsert traits", "error", err)
 		}
 	}
 
-	// 6. Store snapshot
-	if err := uc.storage.StoreIdentity(ctx, newIdentity); err != nil {
-		return nil, fmt.Errorf("failed to store identity: %w", err)
+	// 4c. Store snapshot with retry on version collision
+	if err := storageTx.StoreIdentity(ctx, newIdentity); err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			newIdentity.Version++
+			if err := storageTx.StoreIdentity(ctx, newIdentity); err != nil {
+				return nil, fmt.Errorf("failed to store identity after version bump: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("failed to store identity: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit capture transaction: %w", err)
 	}
 
 	return newIdentity, nil

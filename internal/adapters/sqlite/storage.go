@@ -13,6 +13,7 @@ import (
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
 	"github.com/benoitpetit/soul/internal/usecases/ports"
+	pkgports "github.com/benoitpetit/soul/pkg/ports"
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -20,9 +21,11 @@ import (
 // SoulSQLiteStorage implémente ports.SoulStorage avec SQLite
 // Partage la même base de données que MIRA (soul_ tables dans le .mira/)
 type SoulSQLiteStorage struct {
-	db     *sql.DB
-	dbPath string
-	ownsDB bool // true if this storage owns the *sql.DB and must close it
+	db           *sql.DB
+	tx           *sql.Tx
+	dbPath       string
+	ownsDB       bool // true if this storage owns the *sql.DB and must close it
+	miraProvider pkgports.MiraMemoryProvider
 }
 
 // NewSoulSQLiteStorage crée un nouveau stockage SQLite
@@ -93,6 +96,13 @@ func (s *SoulSQLiteStorage) initSchema() error {
 	CREATE INDEX IF NOT EXISTS idx_soul_identities_agent ON soul_identities(agent_id);
 	CREATE INDEX IF NOT EXISTS idx_soul_identities_version ON soul_identities(agent_id, version);
 	CREATE INDEX IF NOT EXISTS idx_soul_identities_created ON soul_identities(created_at);
+	
+	-- Deduplicate before creating unique index (migration for existing databases)
+	DELETE FROM soul_identities WHERE rowid NOT IN (
+		SELECT MAX(rowid) FROM soul_identities GROUP BY agent_id, version
+	);
+	
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_soul_identities_agent_version ON soul_identities(agent_id, version);
 	
 	-- Table des traits de personnalité
 	CREATE TABLE IF NOT EXISTS soul_traits (
@@ -189,6 +199,36 @@ func (s *SoulSQLiteStorage) Close() error {
 	return nil
 }
 
+// SetMiraProvider injecte le provider MIRA pour découpler SOUL du schéma MIRA.
+func (s *SoulSQLiteStorage) SetMiraProvider(p pkgports.MiraMemoryProvider) {
+	s.miraProvider = p
+}
+
+// q retourne l'exécuteur de requêtes actif (transaction ou base directe)
+func (s *SoulSQLiteStorage) q() interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
+	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
+} {
+	if s.tx != nil {
+		return s.tx
+	}
+	return s.db
+}
+
+// WithTx retourne une nouvelle instance de SoulSQLiteStorage utilisant la transaction donnée.
+func (s *SoulSQLiteStorage) WithTx(tx ports.SoulTx) (ports.SoulStorage, error) {
+	stx, ok := tx.(*soulTx)
+	if !ok {
+		return nil, fmt.Errorf("invalid transaction type")
+	}
+	// shallow copy with tx set
+	s2 := *s
+	s2.tx = stx.tx
+	return &s2, nil
+}
+
 // --- Implémentation IdentityRepository ---
 
 func (s *SoulSQLiteStorage) StoreIdentity(ctx context.Context, identity *entities.IdentitySnapshot) error {
@@ -216,7 +256,7 @@ func (s *SoulSQLiteStorage) StoreIdentity(ctx context.Context, identity *entitie
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	
-	_, err := s.db.ExecContext(ctx, query,
+	_, err := s.q().ExecContext(ctx, query,
 		identity.ID.String(), identity.AgentID, identity.Version, identity.CreatedAt,
 		derivedFrom, string(traitsJSON), string(voiceJSON), string(commJSON),
 		string(behaviorJSON), string(valuesJSON), string(emotionsJSON),
@@ -265,7 +305,7 @@ func (s *SoulSQLiteStorage) GetIdentityHistory(ctx context.Context, agentID stri
 		LIMIT ?
 	`
 	
-	rows, err := s.db.QueryContext(ctx, query, agentID, limit)
+	rows, err := s.q().QueryContext(ctx, query, agentID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -296,12 +336,12 @@ func (s *SoulSQLiteStorage) GetIdentityAtVersion(ctx context.Context, agentID st
 }
 
 func (s *SoulSQLiteStorage) DeleteIdentity(ctx context.Context, id uuid.UUID) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM soul_identities WHERE id = ?", id.String())
+	_, err := s.q().ExecContext(ctx, "DELETE FROM soul_identities WHERE id = ?", id.String())
 	return err
 }
 
 func (s *SoulSQLiteStorage) ListAgents(ctx context.Context) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT DISTINCT agent_id FROM soul_identities")
+	rows, err := s.q().QueryContext(ctx, "SELECT DISTINCT agent_id FROM soul_identities")
 	if err != nil {
 		return nil, err
 	}
@@ -362,7 +402,7 @@ func (s *SoulSQLiteStorage) StoreTrait(ctx context.Context, trait *entities.Pers
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	
-	_, err := s.db.ExecContext(ctx, query,
+	_, err := s.q().ExecContext(ctx, query,
 		trait.ID.String(), trait.AgentID, trait.Name, string(trait.Category),
 		trait.Intensity, trait.Confidence, trait.EvidenceCount,
 		trait.FirstObserved, trait.LastObserved, trait.LastEvidence,
@@ -445,7 +485,7 @@ func (s *SoulSQLiteStorage) UpdateTrait(ctx context.Context, trait *entities.Per
 		WHERE id = ?
 	`
 	
-	_, err := s.db.ExecContext(ctx, query,
+	_, err := s.q().ExecContext(ctx, query,
 		trait.Intensity, trait.Confidence, trait.EvidenceCount,
 		trait.LastObserved, trait.LastEvidence, string(contextsJSON), trait.Consistency,
 		trait.ID.String(),
@@ -459,13 +499,7 @@ func (s *SoulSQLiteStorage) UpsertTraits(ctx context.Context, agentID string, tr
 		return nil
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin upsert transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	insertStmt, err := tx.PrepareContext(ctx, `
+	insertStmt, err := s.q().PrepareContext(ctx, `
 		INSERT INTO soul_traits 
 		(id, agent_id, name, category, intensity, confidence, evidence_count,
 		 first_observed, last_observed, last_evidence, contexts, consistency)
@@ -497,7 +531,7 @@ func (s *SoulSQLiteStorage) UpsertTraits(ctx context.Context, agentID string, tr
 		}
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 func (s *SoulSQLiteStorage) GetWellEstablishedTraits(ctx context.Context, agentID string, minConfidence float64) ([]*entities.PersonalityTrait, error) {
@@ -513,7 +547,7 @@ func (s *SoulSQLiteStorage) GetWellEstablishedTraits(ctx context.Context, agentI
 }
 
 func (s *SoulSQLiteStorage) DeleteTrait(ctx context.Context, id uuid.UUID) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM soul_traits WHERE id = ?", id.String())
+	_, err := s.q().ExecContext(ctx, "DELETE FROM soul_traits WHERE id = ?", id.String())
 	return err
 }
 
@@ -531,7 +565,7 @@ func (s *SoulSQLiteStorage) StoreObservation(ctx context.Context, obs *entities.
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	
-	_, err := s.db.ExecContext(ctx, query,
+	_, err := s.q().ExecContext(ctx, query,
 		obs.ID.String(), obs.AgentID, obs.TraitName, string(obs.Category),
 		obs.Evidence, obs.Context, obs.Intensity, obs.ObservedAt,
 		string(obs.SourceType), memoryID,
@@ -575,7 +609,7 @@ func (s *SoulSQLiteStorage) GetObservationsBySource(ctx context.Context, agentID
 }
 
 func (s *SoulSQLiteStorage) DeleteOldObservations(ctx context.Context, agentID string, before time.Time) (int, error) {
-	result, err := s.db.ExecContext(ctx,
+	result, err := s.q().ExecContext(ctx,
 		"DELETE FROM soul_observations WHERE agent_id = ? AND observed_at < ?",
 		agentID, before,
 	)
@@ -604,7 +638,7 @@ func (s *SoulSQLiteStorage) RecordDiff(ctx context.Context, diff *entities.Ident
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	
-	_, err := s.db.ExecContext(ctx, query,
+	_, err := s.q().ExecContext(ctx, query,
 		diff.AgentID, diff.FromVersion, diff.ToVersion, diff.Timestamp,
 		string(addedJSON), string(removedJSON), string(strengthenedJSON), string(weakenedJSON),
 		string(voiceJSON), string(styleJSON), string(valueJSON), diff.OverallDrift,
@@ -623,7 +657,7 @@ func (s *SoulSQLiteStorage) GetDiffsForAgent(ctx context.Context, agentID string
 		LIMIT ?
 	`
 	
-	rows, err := s.db.QueryContext(ctx, query, agentID, limit)
+	rows, err := s.q().QueryContext(ctx, query, agentID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -667,7 +701,7 @@ func (s *SoulSQLiteStorage) GetLatestDiff(ctx context.Context, agentID string) (
 		LIMIT 1
 	`
 	
-	rows, err := s.db.QueryContext(ctx, query, agentID)
+	rows, err := s.q().QueryContext(ctx, query, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -790,7 +824,7 @@ func (s *SoulSQLiteStorage) RecordModelSwap(ctx context.Context, swap *valueobje
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 	
-	_, err := s.db.ExecContext(ctx, query,
+	_, err := s.q().ExecContext(ctx, query,
 		swap.AgentID, swap.PreviousModel, swap.NewModel, swap.Timestamp,
 		swap.IdentityPreserved, swap.IdentityDrift, swap.ReinforcementApplied,
 	)
@@ -806,7 +840,7 @@ func (s *SoulSQLiteStorage) GetModelSwaps(ctx context.Context, agentID string) (
 		ORDER BY timestamp DESC
 	`
 	
-	rows, err := s.db.QueryContext(ctx, query, agentID)
+	rows, err := s.q().QueryContext(ctx, query, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -837,7 +871,7 @@ func (s *SoulSQLiteStorage) GetLatestModelSwap(ctx context.Context, agentID stri
 		LIMIT 1
 	`
 	
-	row := s.db.QueryRowContext(ctx, query, agentID)
+	row := s.q().QueryRowContext(ctx, query, agentID)
 	swap := &valueobjects.ModelSwapContext{}
 	err := row.Scan(
 		&swap.AgentID, &swap.PreviousModel, &swap.NewModel, &swap.Timestamp,
@@ -856,10 +890,10 @@ func (s *SoulSQLiteStorage) GetLatestModelSwap(ctx context.Context, agentID stri
 // --- Implémentation MiraBridgeRepository ---
 
 func (s *SoulSQLiteStorage) GetMiraMemories(ctx context.Context, agentID, query string, limit int) ([]ports.MiraMemoryReference, error) {
-	// Cette méthode interroge les tables de MIRA directement
-	// Elle suppose que MIRA et SOUL partagent la même base SQLite
-	// Tables MIRA réelles: verbatim, fingerprints (colonne ftype, pas type)
-	
+	if s.miraProvider != nil {
+		return s.miraProvider.GetMiraMemories(ctx, agentID, query, limit)
+	}
+	// Fallback for backward compatibility (tests without provider)
 	sqlQuery := `
 		SELECT v.id, f.data, f.ftype, v.created_at, v.wing, v.room
 		FROM verbatim v
@@ -868,33 +902,29 @@ func (s *SoulSQLiteStorage) GetMiraMemories(ctx context.Context, agentID, query 
 		ORDER BY v.created_at DESC
 		LIMIT ?
 	`
-	
 	searchPattern := "%" + query + "%"
-	rows, err := s.db.QueryContext(ctx, sqlQuery, searchPattern, searchPattern, limit)
+	rows, err := s.q().QueryContext(ctx, sqlQuery, searchPattern, searchPattern, limit)
 	if err != nil {
-		// Si les tables MIRA n'existent pas, retourner vide sans erreur
 		return []ports.MiraMemoryReference{}, nil
 	}
 	defer rows.Close()
-	
+
 	var memories []ports.MiraMemoryReference
 	for rows.Next() {
 		mem := ports.MiraMemoryReference{}
 		var idStr string
-		err := rows.Scan(&idStr, &mem.Content, &mem.MemoryType, &mem.Timestamp, &mem.Wing, &mem.Room)
-		if err != nil {
+		if err := rows.Scan(&idStr, &mem.Content, &mem.MemoryType, &mem.Timestamp, &mem.Wing, &mem.Room); err != nil {
 			continue
 		}
 		mem.MemoryID = uuid.MustParse(idStr)
-		mem.Relevance = 0.8 // Score par défaut
+		mem.Relevance = 0.8
 		memories = append(memories, mem)
 	}
-	
 	return memories, rows.Err()
 }
 
 func (s *SoulSQLiteStorage) LinkIdentityToMemory(ctx context.Context, identityID, memoryID uuid.UUID) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := s.q().ExecContext(ctx,
 		"INSERT OR IGNORE INTO soul_mira_links (identity_id, memory_id, linked_at) VALUES (?, ?, ?)",
 		identityID.String(), memoryID.String(), time.Now(),
 	)
@@ -902,8 +932,10 @@ func (s *SoulSQLiteStorage) LinkIdentityToMemory(ctx context.Context, identityID
 }
 
 func (s *SoulSQLiteStorage) GetLinkedMemories(ctx context.Context, identityID uuid.UUID) ([]ports.MiraMemoryReference, error) {
-	// JOIN avec les tables MIRA réelles pour récupérer contenu + type.
-	// Si les tables MIRA n'existent pas encore, on retombe sur la requête basique.
+	if s.miraProvider != nil {
+		return s.miraProvider.GetLinkedMemories(ctx, identityID)
+	}
+	// Fallback for backward compatibility (tests without provider)
 	query := `
 		SELECT l.memory_id, COALESCE(v.content, ''), COALESCE(f.ftype, ''), l.linked_at, COALESCE(v.wing, ''), v.room
 		FROM soul_mira_links l
@@ -911,16 +943,14 @@ func (s *SoulSQLiteStorage) GetLinkedMemories(ctx context.Context, identityID uu
 		LEFT JOIN fingerprints f ON f.verbatim_id = l.memory_id
 		WHERE l.identity_id = ?
 	`
-
-	rows, err := s.db.QueryContext(ctx, query, identityID.String())
+	rows, err := s.q().QueryContext(ctx, query, identityID.String())
 	if err != nil {
-		// Tables MIRA absentes (ex: tests isolés) → requête de secours sans JOIN
 		fallback := `
 			SELECT memory_id, '' as content, '' as ftype, linked_at, '' as wing, NULL as room
 			FROM soul_mira_links
 			WHERE identity_id = ?
 		`
-		rows, err = s.db.QueryContext(ctx, fallback, identityID.String())
+		rows, err = s.q().QueryContext(ctx, fallback, identityID.String())
 		if err != nil {
 			return nil, err
 		}
@@ -931,29 +961,26 @@ func (s *SoulSQLiteStorage) GetLinkedMemories(ctx context.Context, identityID uu
 	for rows.Next() {
 		mem := ports.MiraMemoryReference{}
 		var idStr string
-		err := rows.Scan(&idStr, &mem.Content, &mem.MemoryType, &mem.Timestamp, &mem.Wing, &mem.Room)
-		if err != nil {
+		if err := rows.Scan(&idStr, &mem.Content, &mem.MemoryType, &mem.Timestamp, &mem.Wing, &mem.Room); err != nil {
 			continue
 		}
 		mem.MemoryID = uuid.MustParse(idStr)
 		memories = append(memories, mem)
 	}
-
 	return memories, rows.Err()
 }
 
 func (s *SoulSQLiteStorage) NotifyMiraOfIdentityChange(ctx context.Context, agentID string, changeType string) error {
-	// Insérer une mémoire dans MIRA pour documenter le changement d'identité
-	// Utilise la vraie table MIRA: verbatim (pas mira_verbatims)
-	content := fmt.Sprintf("Identity change detected: %s for agent %s at %s", 
+	if s.miraProvider != nil {
+		return s.miraProvider.NotifyMiraOfIdentityChange(ctx, agentID, changeType)
+	}
+	// Fallback for backward compatibility (tests without provider)
+	content := fmt.Sprintf("Identity change detected: %s for agent %s at %s",
 		changeType, agentID, time.Now().Format(time.RFC3339))
-	
-	_, _ = s.db.ExecContext(ctx,
+	_, _ = s.q().ExecContext(ctx,
 		"INSERT OR IGNORE INTO verbatim (id, content, created_at, wing) VALUES (?, ?, ?, ?)",
 		uuid.New().String(), content, time.Now(), "soul_identity",
 	)
-	
-	// Si la table n'existe pas, ignorer l'erreur
 	return nil
 }
 
@@ -982,7 +1009,7 @@ func (t *soulTx) Rollback() error {
 // --- Helpers de scan ---
 
 func (s *SoulSQLiteStorage) scanIdentity(ctx context.Context, query string, args ...interface{}) (*entities.IdentitySnapshot, error) {
-	row := s.db.QueryRowContext(ctx, query, args...)
+	row := s.q().QueryRowContext(ctx, query, args...)
 	return s.scanIdentityRow(row)
 }
 
@@ -1030,7 +1057,7 @@ func (s *SoulSQLiteStorage) scanIdentityRow(row interface{ // *sql.Row ou *sql.R
 }
 
 func (s *SoulSQLiteStorage) scanTrait(ctx context.Context, query string, args ...interface{}) (*entities.PersonalityTrait, error) {
-	row := s.db.QueryRowContext(ctx, query, args...)
+	row := s.q().QueryRowContext(ctx, query, args...)
 	return s.scanTraitRow(row)
 }
 
@@ -1064,7 +1091,7 @@ func (s *SoulSQLiteStorage) scanTraitRow(row interface{ // *sql.Row ou *sql.Rows
 }
 
 func (s *SoulSQLiteStorage) scanTraits(ctx context.Context, query string, args ...interface{}) ([]*entities.PersonalityTrait, error) {
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.q().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1098,7 +1125,7 @@ func (s *SoulSQLiteStorage) scanTraits(ctx context.Context, query string, args .
 }
 
 func (s *SoulSQLiteStorage) scanObservations(ctx context.Context, query string, args ...interface{}) ([]*entities.TraitObservation, error) {
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.q().QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

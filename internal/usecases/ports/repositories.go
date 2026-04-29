@@ -9,6 +9,7 @@ import (
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
+	pkgports "github.com/benoitpetit/soul/pkg/ports"
 	"github.com/google/uuid"
 )
 
@@ -125,28 +126,20 @@ type ModelSwapRepository interface {
 // C'est le pont entre SOUL (identité) et MIRA (mémoire factuelle)
 type MiraBridgeRepository interface {
 	// GetMiraMemories récupère des mémoires factuelles de MIRA pour un contexte donné
-	GetMiraMemories(ctx context.Context, agentID, query string, limit int) ([]MiraMemoryReference, error)
-	
+	GetMiraMemories(ctx context.Context, agentID, query string, limit int) ([]pkgports.MiraMemoryReference, error)
+
 	// LinkIdentityToMemory crée un lien entre une identité SOUL et une mémoire MIRA
 	LinkIdentityToMemory(ctx context.Context, identityID, memoryID uuid.UUID) error
-	
+
 	// GetLinkedMemories récupère les mémoires MIRA liées à une identité
-	GetLinkedMemories(ctx context.Context, identityID uuid.UUID) ([]MiraMemoryReference, error)
-	
+	GetLinkedMemories(ctx context.Context, identityID uuid.UUID) ([]pkgports.MiraMemoryReference, error)
+
 	// NotifyMiraOfIdentityChange notifie MIRA d'un changement d'identité
 	NotifyMiraOfIdentityChange(ctx context.Context, agentID string, changeType string) error
 }
 
-// MiraMemoryReference représente une référence à une mémoire MIRA
-type MiraMemoryReference struct {
-	MemoryID    uuid.UUID `json:"memory_id"`
-	Content     string    `json:"content"`      // Contenu T1 (fingerprint)
-	MemoryType  string    `json:"memory_type"`  // Type de mémoire MIRA
-	Relevance   float64   `json:"relevance"`    // Score de pertinence
-	Timestamp   time.Time `json:"timestamp"`
-	Wing        string    `json:"wing"`
-	Room        *string   `json:"room"`
-}
+// MiraMemoryReference is an alias for the public type.
+type MiraMemoryReference = pkgports.MiraMemoryReference
 
 // SoulStorage définit l'interface composite pour toutes les opérations de stockage
 // C'est l'interface principale que les adapters implémentent
@@ -160,6 +153,7 @@ type SoulStorage interface {
 	
 	// Transaction support
 	BeginTx(ctx context.Context) (SoulTx, error)
+	WithTx(tx SoulTx) (SoulStorage, error)
 }
 
 // SoulTx définit une transaction SOUL

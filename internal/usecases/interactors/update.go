@@ -64,7 +64,7 @@ func (uc *IdentityUpdateUseCase) UpdateFromDirective(ctx context.Context, agentI
 		patch.Reason = fmt.Sprintf("user directive: %s", directive)
 	}
 
-	return uc.applyPatch(ctx, agentID, current, patch)
+	return uc.applyPatchTx(ctx, agentID, current, patch)
 }
 
 // PatchIdentity applique un patch structuré sur le dernier snapshot de l'agent.
@@ -79,7 +79,7 @@ func (uc *IdentityUpdateUseCase) PatchIdentity(ctx context.Context, agentID stri
 		return nil, nil, err
 	}
 
-	return uc.applyPatch(ctx, agentID, current, patch)
+	return uc.applyPatchTx(ctx, agentID, current, patch)
 }
 
 // ── Implémentation interne ────────────────────────────────────────────────────
@@ -102,8 +102,33 @@ func (uc *IdentityUpdateUseCase) loadOrInit(ctx context.Context, agentID string)
 	return current, nil
 }
 
+// applyPatchTx construit le nouveau snapshot, applique le patch, sauvegarde atomiquement et retourne.
+func (uc *IdentityUpdateUseCase) applyPatchTx(ctx context.Context, agentID string, current *entities.IdentitySnapshot, patch *valueobjects.IdentityPatch) (*entities.IdentitySnapshot, *UpdateResult, error) {
+	tx, err := uc.storage.BeginTx(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to begin update transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	storageTx, err := uc.storage.WithTx(tx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create transactional storage: %w", err)
+	}
+
+	snap, result, err := uc.applyPatch(ctx, agentID, current, patch, storageTx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, nil, fmt.Errorf("failed to commit update transaction: %w", err)
+	}
+
+	return snap, result, nil
+}
+
 // applyPatch construit le nouveau snapshot, applique le patch, sauvegarde et retourne.
-func (uc *IdentityUpdateUseCase) applyPatch(ctx context.Context, agentID string, current *entities.IdentitySnapshot, patch *valueobjects.IdentityPatch) (*entities.IdentitySnapshot, *UpdateResult, error) {
+func (uc *IdentityUpdateUseCase) applyPatch(ctx context.Context, agentID string, current *entities.IdentitySnapshot, patch *valueobjects.IdentityPatch, storage ports.SoulStorage) (*entities.IdentitySnapshot, *UpdateResult, error) {
 	// Nouveau snapshot dérivé du courant (immuabilité préservée)
 	snap := entities.NewIdentitySnapshot(agentID, current.ModelIdentifier)
 	snap.WithParentSnapshot(current.ID)
@@ -312,7 +337,7 @@ func (uc *IdentityUpdateUseCase) applyPatch(ctx context.Context, agentID string,
 	}
 
 	// Sauvegarder le nouveau snapshot
-	if err := uc.storage.StoreIdentity(ctx, snap); err != nil {
+	if err := storage.StoreIdentity(ctx, snap); err != nil {
 		return nil, nil, fmt.Errorf("échec de la sauvegarde du snapshot mis à jour: %w", err)
 	}
 
