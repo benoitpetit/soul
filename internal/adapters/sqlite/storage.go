@@ -15,7 +15,7 @@ import (
 	"github.com/benoitpetit/soul/internal/usecases/ports"
 	pkgports "github.com/benoitpetit/soul/pkg/ports"
 	"github.com/google/uuid"
-	_ "github.com/mutecomm/go-sqlcipher/v4"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // SoulSQLiteStorage implémente ports.SoulStorage avec SQLite
@@ -232,23 +232,7 @@ func (s *SoulSQLiteStorage) WithTx(tx ports.SoulTx) (ports.SoulStorage, error) {
 	return &s2, nil
 }
 
-// ClearAgentMemory supprime toutes les données d'un agent (identités, traits, observations, diffs, swaps, liens MIRA).
-func (s *SoulSQLiteStorage) ClearAgentMemory(ctx context.Context, agentID string) error {
-	tables := []string{
-		"soul_mira_links",
-		"soul_model_swaps",
-		"soul_diffs",
-		"soul_observations",
-		"soul_traits",
-		"soul_identities",
-	}
-	for _, table := range tables {
-		if _, err := s.q().ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE agent_id = ?", table), agentID); err != nil {
-			return fmt.Errorf("failed to clear %s for agent %s: %w", table, agentID, err)
-		}
-	}
-	return nil
-}
+
 
 // --- Implémentation IdentityRepository ---
 

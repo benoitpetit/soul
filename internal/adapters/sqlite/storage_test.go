@@ -9,7 +9,7 @@ import (
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
 	"github.com/google/uuid"
-	_ "github.com/mutecomm/go-sqlcipher/v4"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // newTestStorage creates an in-memory SQLite storage for testing.
