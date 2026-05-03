@@ -15,7 +15,7 @@ import (
 	"github.com/benoitpetit/soul/internal/usecases/ports"
 	pkgports "github.com/benoitpetit/soul/pkg/ports"
 	"github.com/google/uuid"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mutecomm/go-sqlcipher/v4"
 )
 
 // SoulSQLiteStorage implémente ports.SoulStorage avec SQLite
@@ -103,6 +103,9 @@ func (s *SoulSQLiteStorage) initSchema() error {
 	);
 	
 	CREATE UNIQUE INDEX IF NOT EXISTS idx_soul_identities_agent_version ON soul_identities(agent_id, version);
+	
+	-- NEW: Index for lineage traversal
+	CREATE INDEX IF NOT EXISTS idx_soul_identities_derived_from ON soul_identities(derived_from_id);
 	
 	-- Table des traits de personnalité
 	CREATE TABLE IF NOT EXISTS soul_traits (
@@ -227,6 +230,24 @@ func (s *SoulSQLiteStorage) WithTx(tx ports.SoulTx) (ports.SoulStorage, error) {
 	s2 := *s
 	s2.tx = stx.tx
 	return &s2, nil
+}
+
+// ClearAgentMemory supprime toutes les données d'un agent (identités, traits, observations, diffs, swaps, liens MIRA).
+func (s *SoulSQLiteStorage) ClearAgentMemory(ctx context.Context, agentID string) error {
+	tables := []string{
+		"soul_mira_links",
+		"soul_model_swaps",
+		"soul_diffs",
+		"soul_observations",
+		"soul_traits",
+		"soul_identities",
+	}
+	for _, table := range tables {
+		if _, err := s.q().ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE agent_id = ?", table), agentID); err != nil {
+			return fmt.Errorf("failed to clear %s for agent %s: %w", table, agentID, err)
+		}
+	}
+	return nil
 }
 
 // --- Implémentation IdentityRepository ---

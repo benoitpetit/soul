@@ -2,12 +2,14 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
 	"github.com/google/uuid"
+	_ "github.com/mutecomm/go-sqlcipher/v4"
 )
 
 // newTestStorage creates an in-memory SQLite storage for testing.
@@ -488,5 +490,27 @@ func TestGetIdentityLineage(t *testing.T) {
 	}
 	if lineage.Depth < 1 {
 		t.Errorf("Lineage depth should be >= 1, got %d", lineage.Depth)
+	}
+}
+
+func TestInitSchema_CreatesDerivedFromIndex(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open memory db: %v", err)
+	}
+	defer db.Close()
+
+	storage := &SoulSQLiteStorage{db: db, ownsDB: true}
+	if err := storage.initSchema(); err != nil {
+		t.Fatalf("initSchema failed: %v", err)
+	}
+
+	var idxName string
+	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='soul_identities' AND name='idx_soul_identities_derived_from'").Scan(&idxName)
+	if err != nil {
+		t.Fatalf("index not found: %v", err)
+	}
+	if idxName != "idx_soul_identities_derived_from" {
+		t.Errorf("expected index name 'idx_soul_identities_derived_from', got %s", idxName)
 	}
 }
