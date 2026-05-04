@@ -214,17 +214,7 @@ func convertBehavioralMetricsToTraits(agentID string, metrics map[string]interfa
 	}
 
 	// Preferred tools → tool-oriented trait
-	// Handles both []interface{} (JSON default) and []string (Go native)
-	var toolNames []string
-	if pt, ok := metrics["preferred_tools"].([]interface{}); ok && len(pt) > 0 {
-		for _, v := range pt {
-			if s, ok := v.(string); ok {
-				toolNames = append(toolNames, s)
-			}
-		}
-	} else if pt, ok := metrics["preferred_tools"].([]string); ok && len(pt) > 0 {
-		toolNames = pt
-	}
+	toolNames := getStringSlice(metrics, "preferred_tools")
 	if len(toolNames) > 0 {
 		t := mk("tool-oriented", entities.TraitCognitive, 0.7,
 			fmt.Sprintf("Prefers tools: %s", strings.Join(toolNames, ", ")))
@@ -233,13 +223,7 @@ func convertBehavioralMetricsToTraits(agentID string, metrics map[string]interfa
 	}
 
 	// Success rate → precision / resilience
-	// Handles both float64 (JSON default) and json.Number
-	var sr float64
-	if f, ok := metrics["success_rate"].(float64); ok {
-		sr = f
-	} else if n, ok := metrics["success_rate"].(json.Number); ok {
-		sr, _ = n.Float64()
-	}
+	sr := getFloat64(metrics, "success_rate")
 	if sr > 0 {
 		if sr >= 0.8 {
 			t := mk("precise", entities.TraitCognitive, 0.8,
@@ -271,12 +255,7 @@ func convertBehavioralMetricsToTraits(agentID string, metrics map[string]interfa
 	}
 
 	// Doubt score → cautious (high) or confident (low)
-	var ds float64
-	if f, ok := metrics["doubt_score"].(float64); ok {
-		ds = f
-	} else if n, ok := metrics["doubt_score"].(json.Number); ok {
-		ds, _ = n.Float64()
-	}
+	ds := getFloat64(metrics, "doubt_score")
 	if ds > 0 {
 		if ds > 0.5 {
 			t := mk("cautious", entities.TraitEpistemic, 0.7,
@@ -292,14 +271,7 @@ func convertBehavioralMetricsToTraits(agentID string, metrics map[string]interfa
 	}
 
 	// Total calls → active
-	var tc float64
-	if f, ok := metrics["total_calls"].(float64); ok {
-		tc = f
-	} else if i, ok := metrics["total_calls"].(int); ok {
-		tc = float64(i)
-	} else if n, ok := metrics["total_calls"].(json.Number); ok {
-		tc, _ = n.Float64()
-	}
+	tc := getFloat64(metrics, "total_calls")
 	if tc > 5 {
 		t := mk("active", entities.TraitExpressive, 0.6,
 			fmt.Sprintf("Total tool calls: %.0f", tc))
@@ -308,4 +280,38 @@ func convertBehavioralMetricsToTraits(agentID string, metrics map[string]interfa
 	}
 
 	return traits
+}
+
+// getStringSlice extracts a string slice from metrics with support for both
+// []interface{} (JSON default) and []string (Go native).
+func getStringSlice(metrics map[string]interface{}, key string) []string {
+	if v, ok := metrics[key].([]interface{}); ok && len(v) > 0 {
+		result := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				result = append(result, s)
+			}
+		}
+		return result
+	}
+	if v, ok := metrics[key].([]string); ok {
+		return v
+	}
+	return nil
+}
+
+// getFloat64 extracts a float64 from metrics with support for float64,
+// json.Number, and int types.
+func getFloat64(metrics map[string]interface{}, key string) float64 {
+	if v, ok := metrics[key].(float64); ok {
+		return v
+	}
+	if v, ok := metrics[key].(json.Number); ok {
+		f, _ := v.Float64()
+		return f
+	}
+	if v, ok := metrics[key].(int); ok {
+		return float64(v)
+	}
+	return 0
 }
