@@ -11,8 +11,15 @@ import (
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
+	pkgports "github.com/benoitpetit/soul/pkg/ports"
 	"github.com/pkoukk/tiktoken-go"
 )
+
+// ComposerConfig holds optional configuration for memory enrichment.
+type ComposerConfig struct {
+	EnrichWithMiraMemories bool
+	MaxMiraMemories        int
+}
 
 // SoulComposerService implements ports.IdentityComposer.
 // Generates natural and effective identity prompts for LLMs.
@@ -21,6 +28,8 @@ type SoulComposerService struct {
 	reinforceTemplate string
 	alertTemplate     string
 	tokenizer         *tiktoken.Tiktoken
+	miraProvider      pkgports.MiraMemoryProvider // optional, may be nil
+	config            *ComposerConfig             // optional, may be nil
 }
 
 // NewSoulComposerService creates a new composition service.
@@ -76,6 +85,13 @@ Please realign your responses with your established identity. Be yourself.`,
 	}
 }
 
+// WithMiraProvider sets the optional MIRA memory provider and enrichment config.
+func (s *SoulComposerService) WithMiraProvider(p pkgports.MiraMemoryProvider, cfg *ComposerConfig) *SoulComposerService {
+	s.miraProvider = p
+	s.config = cfg
+	return s
+}
+
 // ComposeIdentityPrompt generates a complete identity prompt
 func (s *SoulComposerService) ComposeIdentityPrompt(ctx context.Context, identity *entities.IdentitySnapshot, budgetTokens int) (*valueobjects.IdentityContextPrompt, error) {
 	// Construire les sections
@@ -100,6 +116,18 @@ func (s *SoulComposerService) ComposeIdentityPrompt(ctx context.Context, identit
 		prompt = s.optimizeForBudget(prompt, budgetTokens)
 	}
 	
+	// Enrich with MIRA memories if enabled
+	if s.config != nil && s.config.EnrichWithMiraMemories && s.miraProvider != nil {
+		memories, err := s.miraProvider.GetMiraMemories(ctx, identity.AgentID, "", s.config.MaxMiraMemories)
+		if err == nil && len(memories) > 0 {
+			prompt += "\n\n### Relevant Memories\n"
+			for _, mem := range memories {
+				prompt += fmt.Sprintf("- %s\n", mem.Content)
+			}
+		}
+		// If err != nil, silently continue — enrichment is optional
+	}
+
 	// Estimer les tokens
 	tokenEstimate := len(prompt) / 4 // Approximation : ~4 chars/token
 	

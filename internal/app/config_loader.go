@@ -24,7 +24,9 @@ type yamlFileConfig struct {
 			AutoCheckAfterCapture *bool   `yaml:"auto_check_after_capture"`
 		} `yaml:"drift_detection"`
 		Recall struct {
-			DefaultBudgetTokens int `yaml:"default_budget_tokens"`
+			DefaultBudgetTokens    int  `yaml:"default_budget_tokens"`
+			EnrichWithMiraMemories bool `yaml:"enrich_with_mira_memories"`
+			MaxMiraMemories        int  `yaml:"max_mira_memories"`
 		} `yaml:"recall"`
 		Extraction struct {
 			MinTraitConfidence      float64 `yaml:"min_trait_confidence"`
@@ -81,6 +83,12 @@ func LoadConfigFile(path string) (*SoulConfig, error) {
 	if fc.Soul.Recall.DefaultBudgetTokens > 0 {
 		cfg.MaxContextTokens = fc.Soul.Recall.DefaultBudgetTokens
 	}
+	if fc.Soul.Recall.EnrichWithMiraMemories {
+		cfg.EnrichWithMiraMemories = true
+	}
+	if fc.Soul.Recall.MaxMiraMemories > 0 {
+		cfg.MaxMiraMemories = fc.Soul.Recall.MaxMiraMemories
+	}
 	if fc.Soul.Extraction.MinTraitConfidence > 0 {
 		cfg.MinTraitConfidence = fc.Soul.Extraction.MinTraitConfidence
 	}
@@ -133,6 +141,12 @@ func LoadConfig(filePath string) (*SoulConfig, error) {
 	}
 	if fileCfg.MaxContextTokens > 0 {
 		cfg.MaxContextTokens = fileCfg.MaxContextTokens
+	}
+	if fileCfg.EnrichWithMiraMemories {
+		cfg.EnrichWithMiraMemories = fileCfg.EnrichWithMiraMemories
+	}
+	if fileCfg.MaxMiraMemories > 0 {
+		cfg.MaxMiraMemories = fileCfg.MaxMiraMemories
 	}
 	if fileCfg.MinTraitConfidence > 0 {
 		cfg.MinTraitConfidence = fileCfg.MinTraitConfidence

@@ -44,6 +44,12 @@ soul:
     # Default token budget for identity prompts
     default_budget_tokens: 1000
     
+    # Enable MIRA memory enrichment in identity prompts
+    enrich_with_mira_memories: true
+    
+    # Maximum number of MIRA memories to inject
+    max_mira_memories: 5
+    
     # The following options are documented but NOT YET IMPLEMENTED:
     # min_budget_tokens: 200
     # max_budget_tokens: 2000

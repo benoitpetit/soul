@@ -43,13 +43,25 @@ type SoulApplication struct {
 	EvolutionUC *interactors.IdentityEvolutionUseCase
 	MergeUC     *interactors.IdentityMergeUseCase
 	UpdateUC    *interactors.IdentityUpdateUseCase
+
+	// Config
+	config *SoulConfig
 }
 
-// SetMiraProvider injecte le provider MIRA dans le stockage SOUL.
+// SetMiraProvider injecte le provider MIRA dans le stockage SOUL et le compositeur.
 // Doit être appelé avant tout usage des méthodes MiraBridge.
 func (app *SoulApplication) SetMiraProvider(p pkgports.MiraMemoryProvider) {
 	if s, ok := app.Storage.(*sqlite.SoulSQLiteStorage); ok {
 		s.SetMiraProvider(p)
+	}
+	if composer, ok := app.Composer.(*composition.SoulComposerService); ok {
+		if app.config != nil {
+			cfg := &composition.ComposerConfig{
+				EnrichWithMiraMemories: app.config.EnrichWithMiraMemories,
+				MaxMiraMemories:        app.config.MaxMiraMemories,
+			}
+			composer.WithMiraProvider(p, cfg)
+		}
 	}
 }
 
@@ -78,6 +90,10 @@ type SoulConfig struct {
 	MCPEnabled                bool   `json:"mcp_enabled"`
 	MCPHost                   string `json:"mcp_host"`  // Default: "localhost"
 	MCPPort                   int    `json:"mcp_port"`  // Default: 8081
+
+	// Memory enrichment (MIRA integration)
+	EnrichWithMiraMemories bool `json:"enrich_with_mira_memories"` // Default: false
+	MaxMiraMemories        int  `json:"max_mira_memories"`         // Default: 5
 }
 
 // DefaultConfig retourne la configuration par défaut
@@ -106,6 +122,10 @@ func DefaultConfig() *SoulConfig {
 		MCPEnabled: false,
 		MCPHost:    "localhost",
 		MCPPort:    8081,
+
+		// Memory enrichment defaults
+		EnrichWithMiraMemories: false,
+		MaxMiraMemories:        5,
 	}
 }
 
@@ -181,6 +201,7 @@ func wireSoulApplication(storage *sqlite.SoulSQLiteStorage, config *SoulConfig) 
 		EvolutionUC:   evolutionUC,
 		MergeUC:       mergeUC,
 		UpdateUC:      updateUC,
+		config:        config,
 	}, nil
 }
 
