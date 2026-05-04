@@ -138,6 +138,30 @@ func (d *SoulDriftDetector) DetectDrift(ctx context.Context, previous, current *
 		}
 	}
 	
+	// 5. Communication style drift
+	commDrift := d.calculateCommunicationStyleDrift(previous.CommunicationStyle, current.CommunicationStyle)
+	if commDrift.Change > 0 {
+		report.DriftDimensions = append(report.DriftDimensions, commDrift)
+		totalDrift += commDrift.Change
+		dimensionCount++
+		if commDrift.IsSignificant {
+			report.Recommendations = append(report.Recommendations,
+				"Communication style has drifted. Consider communication reinforcement.")
+		}
+	}
+
+	// 6. Behavioral signature drift
+	behaviorDrift := d.calculateBehavioralSignatureDrift(previous.BehavioralSignature, current.BehavioralSignature)
+	if behaviorDrift.Change > 0 {
+		report.DriftDimensions = append(report.DriftDimensions, behaviorDrift)
+		totalDrift += behaviorDrift.Change
+		dimensionCount++
+		if behaviorDrift.IsSignificant {
+			report.Recommendations = append(report.Recommendations,
+				"Behavioral signature has drifted. Consider behavioral reinforcement.")
+		}
+	}
+
 	// Calculer le drift global
 	if dimensionCount > 0 {
 		report.DriftScore = totalDrift / float64(dimensionCount)
@@ -470,6 +494,16 @@ func (d *SoulDriftDetector) compareValueSystems(previous, current *entities.Valu
 	diff += abs(previous.PrioritizesCreativity - current.PrioritizesCreativity)
 	
 	return min(diff/6.0, 1.0)
+}
+
+// calculateCommunicationStyleDrift computes drift for communication style.
+func (d *SoulDriftDetector) calculateCommunicationStyleDrift(old, newStyle entities.CommunicationStyle) valueobjects.DimensionDrift {
+	return entities.CalculateCommunicationStyleDrift(old, newStyle)
+}
+
+// calculateBehavioralSignatureDrift computes drift for behavioral signature.
+func (d *SoulDriftDetector) calculateBehavioralSignatureDrift(old, newSig entities.BehavioralSignature) valueobjects.DimensionDrift {
+	return entities.CalculateBehavioralSignatureDrift(old, newSig)
 }
 
 func abs(x float64) float64 {

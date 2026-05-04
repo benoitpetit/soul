@@ -2,7 +2,11 @@
 // Comment l'agent "se comporte" dans différentes situations.
 package entities
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/benoitpetit/soul/internal/domain/valueobjects"
+)
 
 // BehavioralSignature capture les patterns comportementaux observés :
 // comment l'agent réagit face aux défis, aux erreurs, aux désaccords, etc.
@@ -117,6 +121,60 @@ func (b *BehavioralSignature) Validate() error {
 		return fmt.Errorf("persistence_level must be between 0 and 1, got %f", b.PersistenceLevel)
 	}
 	return nil
+}
+
+// CalculateBehavioralSignatureDrift computes the drift between two BehavioralSignature instances.
+func CalculateBehavioralSignatureDrift(old, newSig BehavioralSignature) valueobjects.DimensionDrift {
+	// Float64 fields: mean squared difference
+	floatDiffs := []float64{
+		old.AdaptationSpeed - newSig.AdaptationSpeed,
+		old.PatternRecognition - newSig.PatternRecognition,
+		old.CuriosityLevel - newSig.CuriosityLevel,
+		old.ExplorationTendency - newSig.ExplorationTendency,
+		old.PersistenceLevel - newSig.PersistenceLevel,
+	}
+	floatDistance := 0.0
+	for _, d := range floatDiffs {
+		floatDistance += d * d
+	}
+	floatDistance = floatDistance / float64(len(floatDiffs))
+
+	// Enum/bool fields: fraction changed
+	enumChanged := 0
+	enumTotal := 7
+	if old.ErrorHandlingStyle != newSig.ErrorHandlingStyle {
+		enumChanged++
+	}
+	if old.AdmitsMistakes != newSig.AdmitsMistakes {
+		enumChanged++
+	}
+	if old.SelfCorrectionPattern != newSig.SelfCorrectionPattern {
+		enumChanged++
+	}
+	if old.DisagreementStyle != newSig.DisagreementStyle {
+		enumChanged++
+	}
+	if old.ConflictResolution != newSig.ConflictResolution {
+		enumChanged++
+	}
+	if old.LearningStyleObserved != newSig.LearningStyleObserved {
+		enumChanged++
+	}
+	if old.FollowUpPattern != newSig.FollowUpPattern {
+		enumChanged++
+	}
+	enumDistance := float64(enumChanged) / float64(enumTotal)
+
+	// Combined: equal weight for float and enum components
+	change := (floatDistance + enumDistance) / 2.0
+
+	return valueobjects.DimensionDrift{
+		Dimension:     "behavioral_signature",
+		PreviousValue: 0,
+		CurrentValue:  change,
+		Change:        change,
+		IsSignificant: change > 0.3,
+	}
 }
 
 // ToNaturalDescription génère une description naturelle

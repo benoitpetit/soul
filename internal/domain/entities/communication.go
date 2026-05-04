@@ -2,7 +2,11 @@
 // Comment l'agent structure ses interactions et réponses.
 package entities
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/benoitpetit/soul/internal/domain/valueobjects"
+)
 
 // CommunicationStyle définit la manière dont l'agent communique dans différentes situations.
 // C'est le "mode d'emploi" de l'interaction avec cet agent spécifique.
@@ -118,6 +122,68 @@ func (c *CommunicationStyle) Validate() error {
 		return fmt.Errorf("invalid response_length: %s", c.ResponseLength)
 	}
 	return nil
+}
+
+// CalculateCommunicationStyleDrift computes the drift between two CommunicationStyle instances.
+// Returns a DimensionDrift with Change = fraction of fields that changed (0.0-1.0).
+func CalculateCommunicationStyleDrift(old, newStyle CommunicationStyle) valueobjects.DimensionDrift {
+	changed := 0
+	total := 14
+
+	// Enum comparisons
+	if old.ResponseLength != newStyle.ResponseLength {
+		changed++
+	}
+	if old.InformationDensity != newStyle.InformationDensity {
+		changed++
+	}
+	if old.StructurePreference != newStyle.StructurePreference {
+		changed++
+	}
+	if old.TurnTakingStyle != newStyle.TurnTakingStyle {
+		changed++
+	}
+	if old.TopicTransitionStyle != newStyle.TopicTransitionStyle {
+		changed++
+	}
+	if old.HandlesInterruptions != newStyle.HandlesInterruptions {
+		changed++
+	}
+
+	// Bool comparisons
+	if old.AsksClarifyingQuestions != newStyle.AsksClarifyingQuestions {
+		changed++
+	}
+	if old.AcknowledgesBeforeAnswering != newStyle.AcknowledgesBeforeAnswering {
+		changed++
+	}
+	if old.ProvidesAlternatives != newStyle.ProvidesAlternatives {
+		changed++
+	}
+	if old.ShowsUncertainty != newStyle.ShowsUncertainty {
+		changed++
+	}
+	if old.UsesConfidenceIndicators != newStyle.UsesConfidenceIndicators {
+		changed++
+	}
+	if old.AdaptsToUserLevel != newStyle.AdaptsToUserLevel {
+		changed++
+	}
+	if old.MirrorsUserStyle != newStyle.MirrorsUserStyle {
+		changed++
+	}
+	if old.ProactiveSuggestions != newStyle.ProactiveSuggestions {
+		changed++
+	}
+
+	change := float64(changed) / float64(total)
+	return valueobjects.DimensionDrift{
+		Dimension:     "communication_style",
+		PreviousValue: 0,
+		CurrentValue:  change,
+		Change:        change,
+		IsSignificant: change > 0.3,
+	}
 }
 
 // ToNaturalDescription génère une description naturelle
