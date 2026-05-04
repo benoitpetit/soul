@@ -4,6 +4,7 @@
 package entities
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -122,6 +123,32 @@ func (i *IdentitySnapshot) recalculateConfidence() {
 		totalConfidence += trait.Confidence
 	}
 	i.ConfidenceScore = totalConfidence / float64(len(i.PersonalityTraits))
+}
+
+// Validate checks that the identity snapshot has all required fields with valid values.
+func (i *IdentitySnapshot) Validate() error {
+	if i.AgentID == "" {
+		return fmt.Errorf("agent_id is required")
+	}
+	if i.Version < 1 {
+		return fmt.Errorf("version must be >= 1")
+	}
+	if err := i.VoiceProfile.Validate(); err != nil {
+		return fmt.Errorf("voice profile: %w", err)
+	}
+	if err := i.CommunicationStyle.Validate(); err != nil {
+		return fmt.Errorf("communication style: %w", err)
+	}
+	if err := i.BehavioralSignature.Validate(); err != nil {
+		return fmt.Errorf("behavioral signature: %w", err)
+	}
+	if err := i.ValueSystem.Validate(); err != nil {
+		return fmt.Errorf("value system: %w", err)
+	}
+	if err := i.EmotionalTone.Validate(); err != nil {
+		return fmt.Errorf("emotional tone: %w", err)
+	}
+	return nil
 }
 
 // IsIdentityDiffusionDetected détecte si l'identité a "diffusé" (s'est effacée)

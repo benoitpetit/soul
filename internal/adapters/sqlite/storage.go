@@ -237,6 +237,10 @@ func (s *SoulSQLiteStorage) WithTx(tx ports.SoulTx) (ports.SoulStorage, error) {
 // --- Implémentation IdentityRepository ---
 
 func (s *SoulSQLiteStorage) StoreIdentity(ctx context.Context, identity *entities.IdentitySnapshot) error {
+	// Validate before storing
+	if err := identity.Validate(); err != nil {
+		return fmt.Errorf("identity validation failed: %w", err)
+	}
 	traitsJSON, _ := json.Marshal(identity.PersonalityTraits)
 	voiceJSON, _ := json.Marshal(identity.VoiceProfile)
 	commJSON, _ := json.Marshal(identity.CommunicationStyle)

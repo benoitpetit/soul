@@ -2,6 +2,7 @@
 // Comment l'agent structure ses interactions et réponses.
 package entities
 
+import "fmt"
 
 // CommunicationStyle définit la manière dont l'agent communique dans différentes situations.
 // C'est le "mode d'emploi" de l'interaction avec cet agent spécifique.
@@ -105,6 +106,18 @@ func NewCommunicationStyle() *CommunicationStyle {
 		TopicTransitionStyle:    TransitionSmooth,
 		HandlesInterruptions:    InterruptionFlexible,
 	}
+}
+
+// Validate checks that communication style has valid values.
+func (c *CommunicationStyle) Validate() error {
+	validLengths := map[ResponseLengthPattern]bool{
+		LengthTerse: true, LengthConcise: true, LengthModerate: true,
+		LengthDetailed: true, LengthExhaustive: true,
+	}
+	if c.ResponseLength != "" && !validLengths[c.ResponseLength] {
+		return fmt.Errorf("invalid response_length: %s", c.ResponseLength)
+	}
+	return nil
 }
 
 // ToNaturalDescription génère une description naturelle

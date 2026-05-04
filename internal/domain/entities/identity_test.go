@@ -191,6 +191,36 @@ func TestCalculateDiff_Timestamps(t *testing.T) {
 	}
 }
 
+func TestIdentitySnapshot_Validate_ValidSnapshot(t *testing.T) {
+	snap := NewIdentitySnapshot("test-agent", "gpt-4")
+	snap.WithVoiceProfile(*NewVoiceProfile())
+	snap.WithCommunicationStyle(*NewCommunicationStyle())
+	snap.WithBehavioralSignature(*NewBehavioralSignature())
+	snap.WithValueSystem(*NewValueSystem())
+	snap.WithEmotionalTone(*NewEmotionalTone())
+
+	if err := snap.Validate(); err != nil {
+		t.Errorf("expected valid snapshot, got error: %v", err)
+	}
+}
+
+func TestIdentitySnapshot_Validate_EmptyAgentID(t *testing.T) {
+	snap := NewIdentitySnapshot("", "gpt-4")
+	err := snap.Validate()
+	if err == nil {
+		t.Error("expected error for empty agent_id")
+	}
+}
+
+func TestIdentitySnapshot_Validate_VersionZero(t *testing.T) {
+	snap := NewIdentitySnapshot("test-agent", "gpt-4")
+	snap.Version = 0
+	err := snap.Validate()
+	if err == nil {
+		t.Error("expected error for version < 1")
+	}
+}
+
 func TestGenerateIdentityPrompt_ContainsSections(t *testing.T) {
 	snap := NewIdentitySnapshot("agent-1", "gpt-4")
 	snap.VoiceProfile = *NewVoiceProfile()

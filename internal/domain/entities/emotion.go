@@ -2,6 +2,7 @@
 // La "couleur émotionnelle" distinctive de l'agent dans ses interactions.
 package entities
 
+import "fmt"
 
 // EmotionalTone capture la palette émotionnelle habituelle de l'agent.
 // Ce n'est pas de la vraie émotion (les LLMs n'ont pas de conscience),
@@ -40,6 +41,23 @@ func NewEmotionalTone() *EmotionalTone {
 		ValidationLevel:      0.6,
 		ChallengingLevel:     0.3,
 	}
+}
+
+// Validate checks that emotional tone values are within valid ranges.
+func (e *EmotionalTone) Validate() error {
+	if e.Warmth < 0 || e.Warmth > 1 {
+		return fmt.Errorf("warmth must be between 0 and 1, got %f", e.Warmth)
+	}
+	if e.Calmness < 0 || e.Calmness > 1 {
+		return fmt.Errorf("calmness must be between 0 and 1, got %f", e.Calmness)
+	}
+	if e.Enthusiasm < 0 || e.Enthusiasm > 1 {
+		return fmt.Errorf("enthusiasm must be between 0 and 1, got %f", e.Enthusiasm)
+	}
+	if e.Resilience < 0 || e.Resilience > 1 {
+		return fmt.Errorf("resilience must be between 0 and 1, got %f", e.Resilience)
+	}
+	return nil
 }
 
 // ToNaturalDescription génère une description naturelle

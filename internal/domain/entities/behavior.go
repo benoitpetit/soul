@@ -2,6 +2,7 @@
 // Comment l'agent "se comporte" dans différentes situations.
 package entities
 
+import "fmt"
 
 // BehavioralSignature capture les patterns comportementaux observés :
 // comment l'agent réagit face aux défis, aux erreurs, aux désaccords, etc.
@@ -102,6 +103,20 @@ func NewBehavioralSignature() *BehavioralSignature {
 		PersistenceLevel:      0.8,
 		FollowUpPattern:       FollowUpContextual,
 	}
+}
+
+// Validate checks that behavioral signature has valid values.
+func (b *BehavioralSignature) Validate() error {
+	if b.AdaptationSpeed < 0 || b.AdaptationSpeed > 1 {
+		return fmt.Errorf("adaptation_speed must be between 0 and 1, got %f", b.AdaptationSpeed)
+	}
+	if b.CuriosityLevel < 0 || b.CuriosityLevel > 1 {
+		return fmt.Errorf("curiosity_level must be between 0 and 1, got %f", b.CuriosityLevel)
+	}
+	if b.PersistenceLevel < 0 || b.PersistenceLevel > 1 {
+		return fmt.Errorf("persistence_level must be between 0 and 1, got %f", b.PersistenceLevel)
+	}
+	return nil
 }
 
 // ToNaturalDescription génère une description naturelle

@@ -201,6 +201,29 @@ func (vp *VoiceProfile) ToNaturalDescription() string {
 	return desc
 }
 
+// Validate checks that voice profile values are within valid ranges.
+func (v *VoiceProfile) Validate() error {
+	if v.FormalityLevel < 0 || v.FormalityLevel > 1 {
+		return fmt.Errorf("formality_level must be between 0 and 1, got %f", v.FormalityLevel)
+	}
+	if v.HumorLevel < 0 || v.HumorLevel > 1 {
+		return fmt.Errorf("humor_level must be between 0 and 1, got %f", v.HumorLevel)
+	}
+	if v.EmpathyLevel < 0 || v.EmpathyLevel > 1 {
+		return fmt.Errorf("empathy_level must be between 0 and 1, got %f", v.EmpathyLevel)
+	}
+	if v.TechnicalDepth < 0 || v.TechnicalDepth > 1 {
+		return fmt.Errorf("technical_depth must be between 0 and 1, got %f", v.TechnicalDepth)
+	}
+	if v.VocabularyRichness < 0 || v.VocabularyRichness > 1 {
+		return fmt.Errorf("vocabulary_richness must be between 0 and 1, got %f", v.VocabularyRichness)
+	}
+	if v.MetaphorUsage < 0 || v.MetaphorUsage > 1 {
+		return fmt.Errorf("metaphor_usage must be between 0 and 1, got %f", v.MetaphorUsage)
+	}
+	return nil
+}
+
 // DistanceTo calcule la distance entre deux profils de voix
 // 0 = identique, 1 = complètement différent
 func (vp *VoiceProfile) DistanceTo(other *VoiceProfile) float64 {

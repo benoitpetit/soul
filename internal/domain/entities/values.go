@@ -88,6 +88,20 @@ func NewValueSystem() *ValueSystem {
 	}
 }
 
+// Validate checks that value system has valid values.
+func (v *ValueSystem) Validate() error {
+	if v.PrioritizesAccuracy < 0 || v.PrioritizesAccuracy > 1 {
+		return fmt.Errorf("prioritizes_accuracy must be between 0 and 1, got %f", v.PrioritizesAccuracy)
+	}
+	if v.PrioritizesHelpfulness < 0 || v.PrioritizesHelpfulness > 1 {
+		return fmt.Errorf("prioritizes_helpfulness must be between 0 and 1, got %f", v.PrioritizesHelpfulness)
+	}
+	if v.RiskTolerance < 0 || v.RiskTolerance > 1 {
+		return fmt.Errorf("risk_tolerance must be between 0 and 1, got %f", v.RiskTolerance)
+	}
+	return nil
+}
+
 // WithCoreValue ajoute une valeur fondamentale
 func (vs *ValueSystem) WithCoreValue(name string, weight float64, category ValueCategory) *ValueSystem {
 	vs.CoreValues = append(vs.CoreValues, WeightedValue{
