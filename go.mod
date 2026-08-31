@@ -1,12 +1,13 @@
 module github.com/benoitpetit/soul
 
-go 1.23.2
+go 1.25.0
 
 require (
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v0.2.0
 	github.com/mutecomm/go-sqlcipher/v4 v4.4.2
 	github.com/pkoukk/tiktoken-go v0.1.8
+	golang.org/x/text v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

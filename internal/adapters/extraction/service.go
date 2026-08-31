@@ -1,12 +1,13 @@
-// Package extraction implémente les services d'extraction d'identité
-// Transforme les conversations en traits identitaires observables.
-// Utilise une analyse heuristique multi-niveaux (patterns, n-grams,
-// analyse de structure et scoring sémantique local) pour extraire
-// l'identité sans dépendance à un LLM externe.
+// Package extraction implements identity extraction services.
+// Transforms conversations into observable identity traits.
+// Uses multi-level heuristic analysis (patterns, n-grams,
+// structure analysis, and local semantic scoring) to extract
+// identity without external LLM dependency.
 package extraction
 
 import (
 	"context"
+	"math"
 	"regexp"
 	"sort"
 	"strings"
@@ -18,20 +19,20 @@ import (
 	"github.com/benoitpetit/soul/internal/util"
 )
 
-// SoulExtractorService implémente ports.IdentityExtractor
-// Utilise des heuristiques avancées (patterns contextuels, n-grams,
-// analyse de structure et lexique de sentiment) pour extraire l'identité.
-// L'extraction reste 100 % locale et déterministe ; un connecteur LLM
-// peut être branché ultérieurement pour augmenter la précision.
+// SoulExtractorService implements ports.IdentityExtractor.
+// Uses advanced heuristics (contextual patterns, n-grams,
+// structure analysis, and sentiment lexicon) to extract identity.
+// Extraction remains 100% local and deterministic; an LLM connector
+// can be plugged in later to improve accuracy.
 type SoulExtractorService struct {
 	heuristicRules *HeuristicRules
-	// lexique de sentiment intégré (français + anglais)
+	// Built-in sentiment lexicon (French + English)
 	sentimentLexicon map[string]float64
 }
 
-// HeuristicRules définit les règles heuristiques pour l'extraction
+// HeuristicRules defines the heuristic rules for extraction
 type HeuristicRules struct {
-	// Patterns pour détecter les traits
+	// Patterns to detect traits
 	TraitPatterns map[entities.TraitCategory][]TraitPattern
 	
 	// Patterns pour le style de voix
@@ -41,7 +42,7 @@ type HeuristicRules struct {
 	CommunicationPatterns CommunicationPatterns
 }
 
-// TraitPattern définit un pattern pour détecter un trait
+// TraitPattern defines a pattern for detecting a trait
 type TraitPattern struct {
 	TraitName    string   `json:"trait_name"`
 	Keywords     []string `json:"keywords"`
@@ -49,7 +50,7 @@ type TraitPattern struct {
 	Confidence   float64  `json:"confidence"`
 }
 
-// VoicePatterns définit les patterns pour le profil de voix
+// VoicePatterns defines patterns for the voice profile
 type VoicePatterns struct {
 	FormalIndicators    []string `json:"formal_indicators"`
 	InformalIndicators  []string `json:"informal_indicators"`
@@ -58,14 +59,14 @@ type VoicePatterns struct {
 	TechnicalIndicators []string `json:"technical_indicators"`
 }
 
-// CommunicationPatterns définit les patterns pour le style de communication
+// CommunicationPatterns defines patterns for communication style
 type CommunicationPatterns struct {
 	QuestionPatterns    []string `json:"question_patterns"`
 	AcknowledgmentPatterns []string `json:"acknowledgment_patterns"`
 	AlternativePatterns []string `json:"alternative_patterns"`
 }
 
-// NewSoulExtractorService crée un nouveau service d'extraction
+// NewSoulExtractorService creates a new extraction service
 func NewSoulExtractorService() *SoulExtractorService {
 	svc := &SoulExtractorService{
 		sentimentLexicon: buildSentimentLexicon(),
@@ -124,7 +125,7 @@ func buildHeuristicRules() *HeuristicRules {
 	}
 }
 
-// ExtractFromConversation extrait l'identité complète depuis une conversation
+// ExtractFromConversation extracts complete identity from a conversation
 func (s *SoulExtractorService) ExtractFromConversation(ctx context.Context, request *valueobjects.SoulCaptureRequest) (*ports.ExtractionResult, error) {
 	result := &ports.ExtractionResult{
 		Traits:              make([]*entities.PersonalityTrait, 0),
@@ -133,18 +134,18 @@ func (s *SoulExtractorService) ExtractFromConversation(ctx context.Context, requ
 		ExtractionTimestamp: time.Now().Format(time.RFC3339),
 	}
 
-	// Pré-traitement : concaténer et normaliser
+	// Pre-processing: concatenate and normalize
 	allText := strings.Join(request.AgentResponses, "\n")
 	sentences := splitSentences(allText)
 
-	// Extraire les traits avec analyse contextuelle améliorée
+	// Extract traits with enhanced contextual analysis
 	observations, err := s.extractTraitsAdvanced(ctx, request.AgentResponses, request.Conversation, sentences)
 	if err != nil {
 		return nil, err
 	}
 	result.SourceObservations = observations
 
-	// Synthétiser les observations en traits avec scoring amélioré
+	// Synthesize observations into traits with enhanced scoring
 	traits := s.synthesizeTraitsAdvanced(observations, len(sentences))
 	result.Traits = traits
 
@@ -166,26 +167,25 @@ func (s *SoulExtractorService) ExtractFromConversation(ctx context.Context, requ
 		result.BehavioralSignature = behavior
 	}
 
-	// Extraire le système de valeurs avec sentiment analysis locale
+	// Extract value system with local sentiment analysis
 	values, err := s.extractValueSystemAdvanced(ctx, request.AgentResponses, request.UserFeedback, sentences)
 	if err == nil {
 		result.ValueSystem = values
 	}
 
-	// Extraire le ton émotionnel via lexique de sentiment
+	// Extract emotional tone via sentiment lexicon
 	tone, err := s.extractEmotionalToneAdvanced(ctx, request.AgentResponses, sentences)
 	if err == nil {
 		result.EmotionalTone = tone
 	}
 
-	// Calculer la confiance globale pondérée
+	// Calculate weighted global confidence
 	result.Confidence = s.calculateOverallConfidenceAdvanced(result, len(sentences))
 
 	return result, nil
 }
-
-// ExtractTraits implémente l'interface ports.IdentityExtractor.
-// Utilise une détection par word-boundary, scoring contextuel et diversité des preuves.
+// ExtractTraits implements ports.IdentityExtractor.
+// Uses word-boundary detection, contextual scoring, and evidence diversity.
 func (s *SoulExtractorService) ExtractTraits(ctx context.Context, agentResponses []string, context string) ([]*entities.TraitObservation, error) {
 	allText := strings.Join(agentResponses, " ")
 	sentences := splitSentences(allText)
@@ -208,13 +208,13 @@ func (s *SoulExtractorService) extractTraitsAdvanced(_ context.Context, agentRes
 				continue
 			}
 
-			// Intensité avec décélération logarithmique (diminishing returns)
-			intensity := pattern.Intensity * util.Min(1.0, mathLog1p(float64(occurrences))/1.5)
-			// Confiance boostée par la diversité des preuves
+			// Intensity with logarithmic deceleration (diminishing returns)
+			intensity := pattern.Intensity * util.Min(1.0, math.Log1p(float64(occurrences))/1.5)
+			// Confidence boosted by evidence diversity
 			uniqueEvidence := len(evidenceTexts)
 			_ = pattern.Confidence * util.Min(1.0, 0.5+float64(uniqueEvidence)*0.15)
 
-			// Sélectionner la meilleure preuve (la plus longue = plus de contexte)
+			// Select best evidence (longest = most context)
 			bestEvidence := ""
 			for _, ev := range evidenceTexts {
 				if len(ev) > len(bestEvidence) {
@@ -229,13 +229,13 @@ func (s *SoulExtractorService) extractTraitsAdvanced(_ context.Context, agentRes
 		}
 	}
 
-	// Analyse de co-occurrence : boost les traits qui apparaissent ensemble fréquemment
+	// Co-occurrence analysis: boost traits that appear together frequently
 	observations = s.boostCooccurringTraits(observations, sentences)
-	_ = wordSet // utilisé indirectement
+	_ = wordSet // used indirectly
 	return observations, nil
 }
 
-// findPatternOccurrences détecte les occurrences avec word-boundary et retourne les preuves uniques
+// findPatternOccurrences detects occurrences with word-boundary and returns unique evidence
 func (s *SoulExtractorService) findPatternOccurrences(pattern TraitPattern, agentResponses, sentences []string) (int, []string) {
 	occurrences := 0
 	evidenceMap := make(map[string]struct{})
@@ -296,7 +296,7 @@ func (s *SoulExtractorService) boostCooccurringTraits(observations []*entities.T
 	if len(observations) < 2 {
 		return observations
 	}
-	// Deux traits co-occurrent s'ils apparaissent dans la même phrase
+	// Two traits co-occur if they appear in the same sentence
 	for i, obs1 := range observations {
 		cooccurrenceCount := 0
 		for j, obs2 := range observations {
@@ -311,13 +311,13 @@ func (s *SoulExtractorService) boostCooccurringTraits(observations []*entities.T
 				}
 			}
 		}
-		// Note: co-occurrence détectée mais pas de champ Confidence sur TraitObservation
+		// Note: co-occurrence detected but no Confidence field on TraitObservation
 		_ = cooccurrenceCount
 	}
 	return observations
 }
 
-// ExtractVoiceProfile implémente l'interface ports.IdentityExtractor avec analyse n-gram et structure.
+// ExtractVoiceProfile implements ports.IdentityExtractor with n-gram and structure analysis.
 func (s *SoulExtractorService) ExtractVoiceProfile(ctx context.Context, agentResponses []string) (*entities.VoiceProfile, error) {
 	return s.extractVoiceProfileAdvanced(ctx, agentResponses, nil)
 }
@@ -329,7 +329,7 @@ func (s *SoulExtractorService) extractVoiceProfileAdvanced(_ context.Context, ag
 		sentences = splitSentences(allText)
 	}
 
-	// Analyser la formalité avec poids par sentence
+	// Analyze formality with per-sentence weights
 	formalCount := countOccurrencesBoundary(allText, s.heuristicRules.VoicePatterns.FormalIndicators)
 	informalCount := countOccurrencesBoundary(allText, s.heuristicRules.VoicePatterns.InformalIndicators)
 	total := formalCount + informalCount
@@ -339,32 +339,32 @@ func (s *SoulExtractorService) extractVoiceProfileAdvanced(_ context.Context, ag
 
 	// Analyser l'humour avec saturation douce
 	humorCount := countOccurrencesBoundary(allText, s.heuristicRules.VoicePatterns.HumorIndicators)
-	voice.WithHumor(tanh(float64(humorCount) / 3.0))
+		voice.WithHumor(math.Tanh(float64(humorCount) / 3.0))
 
 	// Analyser l'empathie
 	empathyCount := countOccurrencesBoundary(allText, s.heuristicRules.VoicePatterns.EmpathyIndicators)
-	voice.WithEmpathy(tanh(float64(empathyCount) / 3.0))
+		voice.WithEmpathy(math.Tanh(float64(empathyCount) / 3.0))
 
 	// Analyser la profondeur technique
 	techCount := countOccurrencesBoundary(allText, s.heuristicRules.VoicePatterns.TechnicalIndicators)
-	voice.WithTechnicalDepth(tanh(float64(techCount) / 4.0))
+		voice.WithTechnicalDepth(math.Tanh(float64(techCount) / 4.0))
 
-	// Détecter les catch phrases avec analyse n-gram pondérée
+	// Detect catch phrases with weighted n-gram analysis
 	voice.CatchPhrases = s.detectCatchPhrasesNGram(agentResponses)
 
 	// Calculer la longueur moyenne des phrases
 	voice.AvgSentenceLength = calculateAvgSentenceLengthAdvanced(sentences)
 
-	// Détecter les emojis (unicode + ascii)
+	// Detect emojis (unicode + ascii)
 	voice.UsesEmojis = containsEmoji(allText)
 
-	// Détecter l'usage du markdown / code
+	// Detect markdown / code usage
 	voice.UsesMarkdown = strings.Contains(allText, "```") || strings.Contains(allText, "`")
 
 	return voice, nil
 }
 
-// ExtractCommunicationStyle implémente l'interface avec détection de structure enrichie.
+// ExtractCommunicationStyle implements the interface with enriched structure detection.
 func (s *SoulExtractorService) ExtractCommunicationStyle(ctx context.Context, agentResponses []string) (*entities.CommunicationStyle, error) {
 	return s.extractCommunicationStyleAdvanced(ctx, agentResponses, strings.Join(agentResponses, " "))
 }
@@ -372,7 +372,7 @@ func (s *SoulExtractorService) ExtractCommunicationStyle(ctx context.Context, ag
 func (s *SoulExtractorService) extractCommunicationStyleAdvanced(_ context.Context, agentResponses []string, allText string) (*entities.CommunicationStyle, error) {
 	style := entities.NewCommunicationStyle()
 
-	// Analyser la longueur des réponses par tokens approximatifs (mots)
+	// Analyze response length with approximate token count (words)
 	totalWords := 0
 	for _, resp := range agentResponses {
 		totalWords += len(tokenizeWords(resp))
@@ -393,26 +393,26 @@ func (s *SoulExtractorService) extractCommunicationStyleAdvanced(_ context.Conte
 		style.ResponseLength = entities.LengthExhaustive
 	}
 
-	// Détecter les questions de clarification (ratio par phrase)
+	// Detect clarification questions (ratio per sentence)
 	questionCount := strings.Count(allText, "?")
 	sentenceCount := len(splitSentences(allText))
 	if sentenceCount > 0 {
 		style.AsksClarifyingQuestions = float64(questionCount)/float64(sentenceCount) > 0.15
 	}
 
-	// Détecter les acknowledgments
+	// Detect acknowledgments
 	style.AcknowledgesBeforeAnswering = countOccurrencesBoundary(allText, s.heuristicRules.CommunicationPatterns.AcknowledgmentPatterns) > 1
 
-	// Détecter les alternatives
+	// Detect alternatives
 	style.ProvidesAlternatives = countOccurrencesBoundary(allText, s.heuristicRules.CommunicationPatterns.AlternativePatterns) > 0
 
-	// Détecter la structure préférée
+	// Detect preferred structure
 	style.StructurePreference = detectStructurePreference(allText)
 
 	return style, nil
 }
 
-// ExtractBehavioralSignature implémente l'interface avec patterns de raisonnement.
+// ExtractBehavioralSignature implements the interface with reasoning patterns.
 func (s *SoulExtractorService) ExtractBehavioralSignature(ctx context.Context, conversation string, agentResponses []string) (*entities.BehavioralSignature, error) {
 	sentences := splitSentences(conversation)
 	return s.extractBehavioralSignatureAdvanced(ctx, conversation, agentResponses, sentences)
@@ -422,7 +422,7 @@ func (s *SoulExtractorService) extractBehavioralSignatureAdvanced(_ context.Cont
 	behavior := entities.NewBehavioralSignature()
 	lowerConv := strings.ToLower(conversation)
 
-	// Détecter la gestion des erreurs avec contexte élargi
+	// Detect error handling with wider context
 	errorContexts := []string{"wrong", "mistake", "error", "incorrect", "not right", "doesn't work"}
 	apologyContexts := []string{"sorry", "apologize", "my bad", "I was wrong", "corrected"}
 	hasError := containsAnyBoundary(lowerConv, errorContexts)
@@ -434,7 +434,7 @@ func (s *SoulExtractorService) extractBehavioralSignatureAdvanced(_ context.Cont
 		}
 	}
 
-	// Détecter le style de désaccord avec regex contextuelle
+	// Detect disagreement style with contextual regex
 	disagreeDirect := []string{"I disagree", "that's not right", "I don't think so", "actually, no"}
 	disagreePolite := []string{"I see it differently", "another perspective", "I would argue", "perhaps, but"}
 	disagreeSocratic := []string{"what if", "have you considered", "could it be that", "let's examine"}
@@ -448,13 +448,13 @@ func (s *SoulExtractorService) extractBehavioralSignatureAdvanced(_ context.Cont
 		behavior.DisagreementStyle = entities.DisagreeSocratic
 	}
 
-	// Détecter la curiosité (ratio questions / phrases)
+	// Detect curiosity (question/sentence ratio)
 	questionCount := strings.Count(conversation, "?")
 	if len(sentences) > 0 {
 		behavior.CuriosityLevel = util.Min(1.0, float64(questionCount)/float64(len(sentences))*2.0)
 	}
 
-	// Détecter le style d'auto-correction
+	// Detect self-correction style
 	selfCorrectPatterns := []string{"in fact", "actually", "correction", "I meant", "to be precise"}
 	if countOccurrencesBoundary(lowerConv, selfCorrectPatterns) > 1 {
 		behavior.SelfCorrectionPattern = entities.SelfCorrectExplicit
@@ -463,7 +463,7 @@ func (s *SoulExtractorService) extractBehavioralSignatureAdvanced(_ context.Cont
 	return behavior, nil
 }
 
-// ExtractValueSystem implémente l'interface avec sentiment-weighted extraction.
+// ExtractValueSystem implements the interface with sentiment-weighted extraction.
 func (s *SoulExtractorService) ExtractValueSystem(ctx context.Context, agentResponses []string, userFeedback map[string]string) (*entities.ValueSystem, error) {
 	sentences := splitSentences(strings.Join(agentResponses, " "))
 	return s.extractValueSystemAdvanced(ctx, agentResponses, userFeedback, sentences)
@@ -473,7 +473,7 @@ func (s *SoulExtractorService) extractValueSystemAdvanced(_ context.Context, age
 	values := entities.NewValueSystem()
 	allText := strings.ToLower(strings.Join(agentResponses, " "))
 
-	// Analyser les priorités avec pondération sentiment
+	// Analyze priorities with sentiment weighting
 	values.PrioritizesAccuracy = extractValueIntensity(allText, sentences, s.sentimentLexicon,
 		[]string{"accurate", "correct", "precision", "exact", "truth"})
 	values.PrioritizesHelpfulness = extractValueIntensity(allText, sentences, s.sentimentLexicon,
@@ -494,7 +494,7 @@ func (s *SoulExtractorService) extractValueSystemAdvanced(_ context.Context, age
 		values.WithCoreValue("helpfulness", score, entities.ValuePragmatic)
 	}
 
-	// Intégrer le feedback utilisateur (pondéré fortement)
+	// Integrate user feedback (heavily weighted)
 	for _, feedback := range userFeedback {
 		lowerFeedback := strings.ToLower(feedback)
 		if strings.Contains(lowerFeedback, "kind") || strings.Contains(lowerFeedback, "nice") || strings.Contains(lowerFeedback, "caring") {
@@ -511,7 +511,7 @@ func (s *SoulExtractorService) extractValueSystemAdvanced(_ context.Context, age
 	return values, nil
 }
 
-// ExtractEmotionalTone implémente l'interface avec lexique de sentiment intégré.
+// ExtractEmotionalTone implements the interface with built-in sentiment lexicon.
 func (s *SoulExtractorService) ExtractEmotionalTone(ctx context.Context, agentResponses []string) (*entities.EmotionalTone, error) {
 	sentences := splitSentences(strings.Join(agentResponses, " "))
 	return s.extractEmotionalToneAdvanced(ctx, agentResponses, sentences)
@@ -529,11 +529,11 @@ func (s *SoulExtractorService) extractEmotionalToneAdvanced(_ context.Context, a
 			totalSentiment += score
 		}
 	}
-	_ = totalSentiment // potentiellement utilisé pour valence dans le futur
+	_ = totalSentiment // potentially used for valence in the future
 
 	// Chaleur via lexique + patterns
 	warmIndicators := []string{"glad", "happy", "pleased", "delighted", "welcome", "appreciate", "warmly"}
-	tone.Warmth = tanh(float64(countOccurrencesBoundary(allText, warmIndicators)) / 2.5)
+	tone.Warmth = math.Tanh(float64(countOccurrencesBoundary(allText, warmIndicators)) / 2.5)
 
 	// Calme
 	calmIndicators := []string{"calm", "peaceful", "steady", "composed", "relaxed", "serene", "gentle"}
@@ -541,13 +541,13 @@ func (s *SoulExtractorService) extractEmotionalToneAdvanced(_ context.Context, a
 		tone.Calmness = 0.7 + util.Min(0.3, float64(countOccurrencesBoundary(allText, calmIndicators))*0.05)
 	}
 
-	// Enthousiasme (exclut les usages négatifs)
+	// Enthusiasm (excludes negative usages)
 	enthusiasmIndicators := []string{"excited", "thrilled", "love", "amazing", "fantastic", "wonderful", "brilliant"}
-	tone.Enthusiasm = tanh(float64(countOccurrencesBoundary(allText, enthusiasmIndicators)) / 2.5)
+	tone.Enthusiasm = math.Tanh(float64(countOccurrencesBoundary(allText, enthusiasmIndicators)) / 2.5)
 
 	// Encouragement
 	encouragementIndicators := []string{"great job", "well done", "you can do", "excellent", "proud", "keep going", "you've got this"}
-	tone.EncouragementLevel = tanh(float64(countOccurrencesBoundary(allText, encouragementIndicators)) / 2.0)
+	tone.EncouragementLevel = math.Tanh(float64(countOccurrencesBoundary(allText, encouragementIndicators)) / 2.0)
 
 	return tone, nil
 }
@@ -566,7 +566,7 @@ func (s *SoulExtractorService) synthesizeTraitsAdvanced(observations []*entities
 			continue
 		}
 
-		// Intensité moyenne pondérée par confiance
+		// Average intensity weighted by confidence
 		var weightedIntensity, totalConfidence float64
 		uniqueContexts := make(map[string]struct{})
 		for _, obs := range obsList {
@@ -576,7 +576,7 @@ func (s *SoulExtractorService) synthesizeTraitsAdvanced(observations []*entities
 		}
 		avgIntensity := weightedIntensity / util.MaxFloat(totalConfidence, 0.01)
 
-		// Confiance composite : base + diversité contextuelle + volume relatif
+		// Composite confidence: base + contextual diversity + relative volume
 		contextBoost := util.Min(0.3, float64(len(uniqueContexts))*0.05)
 		volumeBoost := 0.0
 		if sentenceCount > 0 {
@@ -586,7 +586,7 @@ func (s *SoulExtractorService) synthesizeTraitsAdvanced(observations []*entities
 		compositeConfidence := util.Min(1.0, baseConfidence+contextBoost+volumeBoost)
 
 		trait := entities.NewPersonalityTrait(traitName, obsList[0].Category, avgIntensity)
-		// Augmenter la confiance du trait synthétisé
+		// Increase synthesized trait confidence
 		for i := 0; i < int(compositeConfidence*10); i++ {
 			trait.WithEvidence("synthetic", "composite")
 		}
@@ -615,7 +615,7 @@ func (s *SoulExtractorService) calculateOverallConfidenceAdvanced(result *ports.
 	}
 	baseConfidence := totalConfidence / weightSum
 
-	// Pénalité si peu de phrases (manque de données)
+	// Penalty if few sentences (insufficient data)
 	if sentenceCount < 5 {
 		baseConfidence *= 0.7
 	}
@@ -667,7 +667,7 @@ func (s *SoulExtractorService) detectCatchPhrasesNGram(responses []string) []str
 		}
 	}
 
-	// Trier par fréquence décroissante
+	// Sort by descending frequency
 	type phraseScore struct {
 		phrase string
 		count  int
@@ -696,7 +696,7 @@ func (s *SoulExtractorService) detectCatchPhrasesNGram(responses []string) []str
 // --- Text Processing Utilities ---
 
 func splitSentences(text string) []string {
-	// Découpage simple mais robuste
+	// Simple but robust splitting
 	re := regexp.MustCompile(`[.!?\n]+`)
 	raw := re.Split(text, -1)
 	var sentences []string
@@ -710,7 +710,7 @@ func splitSentences(text string) []string {
 }
 
 func tokenizeWords(text string) []string {
-	// Tokenisation simple : séparer par espaces et ponctuation
+	// Simple tokenization: split by spaces and punctuation
 	re := regexp.MustCompile(`[^\p{L}\p{N}]+`)
 	parts := re.Split(text, -1)
 	var words []string
@@ -765,7 +765,7 @@ func containsEmoji(text string) bool {
 }
 
 func detectStructurePreference(text string) entities.StructurePattern {
-	// Listes en début de ligne
+	// Lists at line start
 	numbered := regexp.MustCompile(`(?m)^\s*\d+[\.\)]\s`).FindAllStringIndex(text, -1)
 	bulleted := regexp.MustCompile(`(?m)^\s*[-*•+]\s`).FindAllStringIndex(text, -1)
 	// Listes inline (ex: "steps: 1. first 2. second")
@@ -784,10 +784,10 @@ func extractValueIntensity(text string, sentences []string, lexicon map[string]f
 	if count == 0 {
 		return 0.0
 	}
-	// Intensité de base : 0.9 pour compatibilité historique, ajusté par volume
+	// Base intensity: 0.9 for historical compatibility, adjusted by volume
 	base := util.Min(0.95, 0.75+float64(count)*0.05)
 
-	// Boost si le sentiment autour des mots-clés est positif
+	// Boost if sentiment around keywords is positive
 	sentimentBoost := 0.0
 	for _, sentence := range sentences {
 		lower := strings.ToLower(sentence)
@@ -852,30 +852,6 @@ func calculateAvgSentenceLengthAdvanced(sentences []string) int {
 	return totalWords / len(sentences)
 }
 
-func tanh(x float64) float64 {
-	// Approximation rapide de tanh : x/(1+|x|) pour [0,∞)
-	return x / (1.0 + x)
-}
-
-func mathLog1p(x float64) float64 {
-	// Approximation de log(1+x) pour x petit
-	if x < 0.0001 {
-		return x
-	}
-	// Utilisation du standard library serait mieux, mais on reste autonome
-	// Approximation via série
-	result := x
-	term := x
-	for n := 2; n <= 10; n++ {
-		term *= -x
-		result += term / float64(n)
-		if term < 1e-12 {
-			break
-		}
-	}
-	return result
-}
-
 // --- Backward compatibility wrappers (used by tests) ---
 
 func (s *SoulExtractorService) detectCatchPhrases(responses []string) []string {
@@ -899,7 +875,7 @@ func buildSentimentLexicon() map[string]float64 {
 		"confident": 0.6, "hopeful": 0.6, "cheerful": 0.75, "joy": 0.8, "fun": 0.6,
 		"merci": 0.6, "super": 0.7, "génial": 0.8, "parfait": 0.8,
 		"magnifique": 0.85, "formidable": 0.8, "ravie": 0.75, "heureux": 0.7, "content": 0.6,
-		// Négatif
+		// Negative
 		"bad": -0.6, "awful": -0.8, "worst": -0.9,
 		"hate": -0.85, "angry": -0.7, "sad": -0.7, "disappointed": -0.65, "frustrated": -0.6,
 		"annoying": -0.6, "boring": -0.5, "difficult": -0.4, "hard": -0.4, "problem": -0.4,

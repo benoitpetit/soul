@@ -13,6 +13,8 @@ import (
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
 	pkgports "github.com/benoitpetit/soul/pkg/ports"
 	"github.com/pkoukk/tiktoken-go"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // ComposerConfig holds optional configuration for memory enrichment.
@@ -472,7 +474,7 @@ func parseSections(prompt string) map[string]string {
 func formatSectionName(name string) string {
 	// Convert snake_case or joined to Title Case
 	name = strings.ReplaceAll(name, "_", " ")
-	return strings.Title(name)
+	return cases.Title(language.English).String(strings.ToLower(name))
 }
 
 func truncateByTokens(text string, maxTokens int, s *SoulComposerService) string {

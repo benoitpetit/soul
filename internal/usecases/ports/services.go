@@ -8,8 +8,8 @@ import (
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
 )
 
-// IdentityExtractor définit l'interface pour l'extraction d'identité depuis du texte
-// C'est le cœur algorithmique de SOUL : transformer des conversations en traits identitaires.
+// IdentityExtractor defines the interface for identity extraction from text.
+// This is the algorithmic core of SOUL: transforming conversations into observable identity traits.
 type IdentityExtractor interface {
 	// ExtractFromConversation extrait l'identité depuis une conversation complète
 	ExtractFromConversation(ctx context.Context, request *valueobjects.SoulCaptureRequest) (*ExtractionResult, error)
@@ -46,8 +46,8 @@ type ExtractionResult struct {
 	ExtractionTimestamp  string                            `json:"extraction_timestamp"`
 }
 
-// IdentityComposer définit l'interface pour la composition du contexte identitaire
-// Transforme l'identité stockée en prompt injectable dans le context window du LLM.
+// IdentityComposer defines the interface for identity context composition.
+// Transforms stored identity into prompts injectable into the LLM context window.
 type IdentityComposer interface {
 	// ComposeIdentityPrompt génère un prompt d'identité à partir d'un snapshot
 	ComposeIdentityPrompt(ctx context.Context, identity *entities.IdentitySnapshot, budgetTokens int) (*valueobjects.IdentityContextPrompt, error)
@@ -62,8 +62,8 @@ type IdentityComposer interface {
 	EstimateTokenCount(ctx context.Context, prompt string) (int, error)
 }
 
-// IdentityDriftDetector définit l'interface pour la détection de dérive identitaire
-// Surveille si l'identité de l'agent "s'efface" au fil du temps.
+// IdentityDriftDetector defines the interface for identity drift detection.
+// Monitors if the agent's identity "erases" over time.
 type IdentityDriftDetector interface {
 	// DetectDrift compare deux snapshots et détecte la dérive
 	DetectDrift(ctx context.Context, previous, current *entities.IdentitySnapshot) (*valueobjects.IdentityDriftReport, error)
@@ -78,8 +78,8 @@ type IdentityDriftDetector interface {
 	CalculateIdentityVector(ctx context.Context, identity *entities.IdentitySnapshot) (*entities.IdentityDimensionVector, error)
 }
 
-// ModelSwapHandler définit l'interface pour la gestion des changements de modèle
-// Moment critique où l'identité risque d'être perdue.
+// ModelSwapHandler defines the interface for model change management.
+// Critical moment where identity is at risk of being lost.
 type ModelSwapHandler interface {
 	// HandleModelSwap gère le changement de modèle
 	HandleModelSwap(ctx context.Context, agentID, previousModel, newModel string) (*valueobjects.ModelSwapContext, error)
@@ -91,8 +91,8 @@ type ModelSwapHandler interface {
 	MeasurePostSwapDrift(ctx context.Context, swap *valueobjects.ModelSwapContext) (float64, error)
 }
 
-// SoulEmbedder définit l'interface pour la génération d'embeddings identitaires
-// Permet la recherche vectorielle d'identités (intégration avec HNSW de MIRA)
+// SoulEmbedder defines the interface for identity embedding generation.
+// Enables vector search for identities (integration with MIRA's HNSW)
 type SoulEmbedder interface {
 	// EncodeIdentity encode un snapshot d'identité en vecteur
 	EncodeIdentity(ctx context.Context, identity *entities.IdentitySnapshot) ([]float32, error)
@@ -110,7 +110,7 @@ type SoulEmbedder interface {
 	Dimension() int
 }
 
-// IdentityEvolutionTracker définit l'interface pour le suivi de l'évolution
+// IdentityEvolutionTracker defines the interface for evolution tracking.
 type IdentityEvolutionTracker interface {
 	// TrackEvolution enregistre une évolution et retourne le diff
 	TrackEvolution(ctx context.Context, oldSnapshot, newSnapshot *entities.IdentitySnapshot) (*entities.IdentityDiff, error)
@@ -125,8 +125,8 @@ type IdentityEvolutionTracker interface {
 	SuggestIdentityAdjustments(ctx context.Context, agentID string) ([]string, error)
 }
 
-// SoulMerger définit l'interface pour la fusion d'identités
-// Utilisé quand deux sessions/agent doivent fusionner.
+// SoulMerger defines the interface for identity merging.
+// Used when two sessions/agents must merge.
 type SoulMerger interface {
 	// MergeIdentities fusionne deux identités
 	MergeIdentities(ctx context.Context, identityA, identityB *entities.IdentitySnapshot, strategy valueobjects.MergeStrategy) (*entities.IdentitySnapshot, error)

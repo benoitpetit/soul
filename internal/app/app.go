@@ -1,4 +1,4 @@
-// Package app implémente le wiring de l'application SOUL
+// Package app implements the application wiring for SOUL.
 // Connecte tous les composants selon l'architecture hexagonale.
 package app
 
@@ -22,7 +22,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// SoulApplication représente l'application SOUL complète
+// SoulApplication represents the complete SOUL application.
 // C'est le point d'entrée central qui orchestre tous les use cases.
 type SoulApplication struct {
 	// Storage
@@ -49,7 +49,7 @@ type SoulApplication struct {
 }
 
 // SetMiraProvider injecte le provider MIRA dans le stockage SOUL et le compositeur.
-// Doit être appelé avant tout usage des méthodes MiraBridge.
+// Must be called before using any MiraBridge methods.
 func (app *SoulApplication) SetMiraProvider(p pkgports.MiraMemoryProvider) {
 	if s, ok := app.Storage.(*sqlite.SoulSQLiteStorage); ok {
 		s.SetMiraProvider(p)
@@ -67,9 +67,9 @@ func (app *SoulApplication) SetMiraProvider(p pkgports.MiraMemoryProvider) {
 
 // SoulConfig configure l'application SOUL
 type SoulConfig struct {
-	StoragePath      string  `json:"storage_path"`        // Chemin vers la base SQLite (partagée avec MIRA)
-	DriftThreshold   float64 `json:"drift_threshold"`     // Seuil de détection de dérive (0-1)
-	MaxContextTokens int     `json:"max_context_tokens"`  // Budget de tokens pour le prompt d'identité
+	StoragePath      string  `json:"storage_path"`        // Path to SQLite database (shared with MIRA)
+	DriftThreshold   float64 `json:"drift_threshold"`     // Drift detection threshold (0-1)
+	MaxContextTokens int     `json:"max_context_tokens"`  // Token budget for identity prompt
 
 	// Extraction configuration
 	MinTraitConfidence       float64 `json:"min_trait_confidence"`        // Default: 0.3
@@ -96,10 +96,10 @@ type SoulConfig struct {
 	MaxMiraMemories        int  `json:"max_mira_memories"`         // Default: 5
 }
 
-// DefaultConfig retourne la configuration par défaut
+// DefaultConfig returns the default configuration
 func DefaultConfig() *SoulConfig {
 	return &SoulConfig{
-		StoragePath:      ".mira/mira.db", // Partage la même base que MIRA
+		StoragePath:      ".mira/mira.db", // Shares the same database as MIRA
 		DriftThreshold:   0.3,
 		MaxContextTokens: 1000,
 
@@ -129,13 +129,13 @@ func DefaultConfig() *SoulConfig {
 	}
 }
 
-// NewSoulApplication crée et configure l'application SOUL
+// NewSoulApplication creates and configures the SOUL application
 func NewSoulApplication(config *SoulConfig) (*SoulApplication, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}
 	
-	// 1. Storage (SQLite - partagé avec MIRA)
+	// 1. Storage (SQLite - shared with MIRA)
 	storage, err := sqlite.NewSoulSQLiteStorage(config.StoragePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
@@ -144,23 +144,23 @@ func NewSoulApplication(config *SoulConfig) (*SoulApplication, error) {
 	return wireSoulApplication(storage, config)
 }
 
-// NewSoulApplicationWithDB crée l'application SOUL en réutilisant une connexion *sql.DB existante.
-// Utilisé quand SOUL est embarqué dans MIRA — la connexion n'est PAS fermée par Close().
-// Utilise la configuration par défaut. Pour passer une configuration personnalisée, utilisez NewSoulApplicationWithDBAndConfig.
+// NewSoulApplicationWithDB creates the SOUL application reusing an existing *sql.DB connection.
+// Used when SOUL is embedded within MIRA — the connection is NOT closed by Close().
+// Uses default configuration. For custom config, use NewSoulApplicationWithDBAndConfig.
 func NewSoulApplicationWithDB(db *sql.DB) (*SoulApplication, error) {
 	return NewSoulApplicationWithDBAndConfig(db, nil)
 }
 
-// NewSoulApplicationWithDBAndConfig crée l'application SOUL en réutilisant une connexion *sql.DB existante
-// avec une configuration personnalisée.
-// Utilisé quand SOUL est embarqué dans MIRA — la connexion n'est PAS fermée par Close().
-// Si config est nil, les valeurs par défaut sont utilisées.
+// NewSoulApplicationWithDBAndConfig creates the SOUL application reusing an existing *sql.DB connection
+// with custom configuration.
+// Used when SOUL is embedded within MIRA — the connection is NOT closed by Close().
+// If config is nil, default values are used.
 func NewSoulApplicationWithDBAndConfig(db *sql.DB, config *SoulConfig) (*SoulApplication, error) {
 	if config == nil {
 		config = DefaultConfig()
 	}
 
-	// 1. Storage — réutilise la connexion MIRA (ownsDB = false)
+	// 1. Storage — reuses MIRA connection (ownsDB = false)
 	storage, err := sqlite.NewSoulSQLiteStorageFromDB(db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
@@ -169,7 +169,7 @@ func NewSoulApplicationWithDBAndConfig(db *sql.DB, config *SoulConfig) (*SoulApp
 	return wireSoulApplication(storage, config)
 }
 
-// wireSoulApplication câble les services et use cases à partir d'un storage déjà initialisé.
+// wireSoulApplication wires services and use cases from an already-initialized storage.
 func wireSoulApplication(storage *sqlite.SoulSQLiteStorage, config *SoulConfig) (*SoulApplication, error) {
 	// Services
 	extractor := extraction.NewSoulExtractorService()
@@ -207,7 +207,7 @@ func wireSoulApplication(storage *sqlite.SoulSQLiteStorage, config *SoulConfig) 
 
 // --- API Publique de SOUL ---
 
-// Capture capture l'identité depuis une conversation
+// Capture captures identity from a conversation
 func (app *SoulApplication) Capture(ctx context.Context, request *valueobjects.SoulCaptureRequest) (*entities.IdentitySnapshot, error) {
 	log.Printf("[SOUL] Capturing identity for agent %s", request.AgentID)
 	
@@ -216,7 +216,7 @@ func (app *SoulApplication) Capture(ctx context.Context, request *valueobjects.S
 		return nil, fmt.Errorf("capture failed: %w", err)
 	}
 	
-	// Tracker l'évolution
+	// Track evolution
 	if app.EvolutionUC != nil {
 		_, _ = app.EvolutionUC.TrackSnapshot(ctx, snapshot)
 	}
@@ -227,7 +227,7 @@ func (app *SoulApplication) Capture(ctx context.Context, request *valueobjects.S
 	return snapshot, nil
 }
 
-// Recall récupère l'identité pour injection dans le contexte LLM
+// Recall retrieves identity for injection into LLM context
 func (app *SoulApplication) Recall(ctx context.Context, query *valueobjects.SoulQuery) (*valueobjects.IdentityContextPrompt, error) {
 	log.Printf("[SOUL] Recalling identity for agent %s", query.AgentID)
 	
@@ -241,7 +241,7 @@ func (app *SoulApplication) Recall(ctx context.Context, query *valueobjects.Soul
 	return prompt, nil
 }
 
-// CheckDrift vérifie la dérive identitaire
+// CheckDrift checks for identity drift
 func (app *SoulApplication) CheckDrift(ctx context.Context, agentID string, currentIdentity *entities.IdentitySnapshot) (*valueobjects.IdentityDriftReport, error) {
 	log.Printf("[SOUL] Checking drift for agent %s", agentID)
 	
@@ -257,7 +257,7 @@ func (app *SoulApplication) CheckDrift(ctx context.Context, agentID string, curr
 	return report, nil
 }
 
-// HandleModelSwap gère un changement de modèle
+// HandleModelSwap handles a model change
 func (app *SoulApplication) HandleModelSwap(ctx context.Context, agentID, previousModel, newModel string) (*valueobjects.IdentityContextPrompt, error) {
 	log.Printf("[SOUL] Handling model swap for agent %s: %s -> %s", agentID, previousModel, newModel)
 	
@@ -267,7 +267,7 @@ func (app *SoulApplication) HandleModelSwap(ctx context.Context, agentID, previo
 		return nil, fmt.Errorf("model swap handling failed: %w", err)
 	}
 	
-	// 2. Générer le prompt de renforcement
+	// 2. Generate reinforcement prompt
 	prompt, err := app.SwapUC.GetReinforcementPrompt(ctx, agentID)
 	if err != nil {
 		return nil, fmt.Errorf("reinforcement prompt generation failed: %w", err)
@@ -278,7 +278,7 @@ func (app *SoulApplication) HandleModelSwap(ctx context.Context, agentID, previo
 	return prompt, nil
 }
 
-// GetIdentitySummary retourne un résumé lisible de l'identité
+// GetIdentitySummary returns a readable identity summary
 func (app *SoulApplication) GetIdentitySummary(ctx context.Context, agentID string) (string, error) {
 	return app.RecallUC.GetIdentitySummary(ctx, agentID)
 }
@@ -288,17 +288,17 @@ func (app *SoulApplication) GetIdentityHistory(ctx context.Context, agentID stri
 	return app.RecallUC.GetIdentityHistory(ctx, agentID, limit)
 }
 
-// GetDriftReport retourne le rapport de dérive
+// GetDriftReport returns the drift report
 func (app *SoulApplication) GetDriftReport(ctx context.Context, agentID string, windowSize int) (*valueobjects.IdentityDriftReport, error) {
 	return app.DriftUC.GetDriftReport(ctx, agentID, windowSize)
 }
 
-// GetEvolutionSummary retourne un résumé de l'évolution
+// GetEvolutionSummary returns an evolution summary
 func (app *SoulApplication) GetEvolutionSummary(ctx context.Context, agentID string) (string, error) {
 	return app.EvolutionUC.GetEvolutionSummary(ctx, agentID)
 }
 
-// UpdateFromDirective parse une directive en langage naturel et l'applique comme patch d'identité.
+// UpdateFromDirective parses a natural language directive and applies it as an identity patch.
 func (app *SoulApplication) UpdateFromDirective(ctx context.Context, agentID, directive, reason string) (*entities.IdentitySnapshot, *interactors.UpdateResult, error) {
 	log.Printf("[SOUL] UpdateFromDirective for agent %s: %q", agentID, directive)
 	snap, result, err := app.UpdateUC.UpdateFromDirective(ctx, agentID, directive, reason)
@@ -309,7 +309,7 @@ func (app *SoulApplication) UpdateFromDirective(ctx context.Context, agentID, di
 	return snap, result, nil
 }
 
-// PatchIdentity applique un patch structuré sur l'identité de l'agent.
+// PatchIdentity applies a structured patch on the agent's identity.
 func (app *SoulApplication) PatchIdentity(ctx context.Context, agentID string, patch *valueobjects.IdentityPatch) (*entities.IdentitySnapshot, *interactors.UpdateResult, error) {
 	log.Printf("[SOUL] PatchIdentity for agent %s", agentID)
 	snap, result, err := app.UpdateUC.PatchIdentity(ctx, agentID, patch)
