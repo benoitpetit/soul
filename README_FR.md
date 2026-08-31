@@ -6,7 +6,7 @@
 
   **Système de Préservation d'Identité pour Agents LLM**
 
-  [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
+  [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
   [![Version](https://img.shields.io/badge/Version-0.0.6-blue?style=flat-square)]()
   [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?style=flat-square)]()
@@ -155,7 +155,7 @@ SOUL ajoute ces tables à la base de données SQLite partagée :
 
 ### Prérequis
 
-- Go 1.23+
+- Go 1.25+
 - GCC (pour la compilation CGo de `go-sqlite3`)
 
 ### Compilation
@@ -244,6 +244,20 @@ soul status --agent mon-agent
 
 ```bash
 soul history --agent mon-agent --limit 20
+```
+
+### Mettre à jour l'identité via une directive en langage naturel
+
+```bash
+soul update --agent mon-agent --directive "réponds avec plus d'enthousiasme"
+soul update --agent mon-agent --directive "sois plus formel" --reason "demande utilisateur"
+```
+
+### Appliquer un patch structuré à l'identité
+
+```bash
+soul patch --agent mon-agent --enthusiasm_level 0.9 --humor_level 0.6
+soul patch --agent mon-agent --formality_level 0.8 --reason "contexte professionnel"
 ```
 
 ### Démarrer le serveur MCP
@@ -396,7 +410,7 @@ github.com/benoitpetit/soul
 
 **Dépôt :** https://github.com/benoitpetit/soul
 
-Go 1.23.2 — SQLite via `mattn/go-sqlite3` — MCP via `mark3labs/mcp-go v0.2.0`
+Go 1.25.0 — SQLite via `mattn/go-sqlite3` — MCP via `mark3labs/mcp-go v0.2.0`
 
 ---
 
