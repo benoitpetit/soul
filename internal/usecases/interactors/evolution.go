@@ -4,6 +4,7 @@ package interactors
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/usecases/ports"
@@ -47,7 +48,7 @@ func (uc *IdentityEvolutionUseCase) TrackSnapshot(ctx context.Context, newSnapsh
 		d := entities.CalculateDiff(previous, newSnapshot)
 		d.AgentID = newSnapshot.AgentID
 		if err := uc.storage.RecordDiff(ctx, d); err != nil {
-			fmt.Printf("Warning: failed to record diff: %v\n", err)
+			log.Printf("[SOUL] failed to record diff: %v", err)
 		}
 		return d, nil
 	}
@@ -59,7 +60,7 @@ func (uc *IdentityEvolutionUseCase) TrackSnapshot(ctx context.Context, newSnapsh
 	// 3. Enregistrer le diff
 	if diff != nil {
 		if err := uc.storage.RecordDiff(ctx, diff); err != nil {
-			fmt.Printf("Warning: failed to record diff: %v\n", err)
+			log.Printf("[SOUL] failed to record diff: %v", err)
 		}
 	}
 	

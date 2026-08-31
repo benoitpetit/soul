@@ -5,7 +5,7 @@ go 1.23.2
 require (
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v0.2.0
-	github.com/mattn/go-sqlite3 v1.14.44
+	github.com/mutecomm/go-sqlcipher/v4 v4.4.2
 	github.com/pkoukk/tiktoken-go v0.1.8
 	gopkg.in/yaml.v3 v3.0.1
 )

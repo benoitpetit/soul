@@ -2,7 +2,7 @@
 name: soul
 description: Identity preservation guidance for SOUL MCP integration
 author: benoitpetit
-version: "0.0.4"
+version: "0.0.6"
 tags: [identity, mcp, soul, personality]
 ---
 
@@ -110,7 +110,7 @@ soul:
 }
 ```
 
-> **Note**: In embedded mode, SOUL uses its default parameters. For fine-grained SOUL configuration (custom drift thresholds, budgets, etc.), use **Mode B** (separate servers).
+> **Note**: In embedded mode, SOUL can receive a full `SoulConfig` via `NewApplicationWithDBAndConfig` (see MIRA docs). For standalone fine-grained configuration, use **Mode B** (separate servers with `soul.yaml`).
 
 ### 4. First Identity Capture
 Once the MCP server is running, capture the agent's initial identity:
@@ -315,7 +315,7 @@ When SOUL is embedded in MIRA (16 tools total), the typical workflow becomes:
 3. **Never ignore drift warnings** — DriftScore > 0.3 means the agent's personality has changed significantly.
 4. **Do not patch without a reason** — always provide a `reason` for auditability in `soul_history`.
 5. **Do not use vague directives in soul_update** — "be better" is bad; "be more formal and concise" is good.
-6. **Do not assume MIRA memories are enriched** — `enrich_with_mira_memories` is documented but not yet implemented.
+6. **Enable `enrich_with_mira_memories` only when SOUL is embedded in MIRA** — the feature requires the MIRA memory provider to be wired; it has no effect in standalone mode without MIRA integration.
 7. **Do not forget model_id in capture** — it helps SOUL track identity per model for swap analysis.
 8. **Do not call soul_patch and soul_update in the same turn** — they both create new snapshots; choose one approach.
 

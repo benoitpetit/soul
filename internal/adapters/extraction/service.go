@@ -15,6 +15,7 @@ import (
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
 	"github.com/benoitpetit/soul/internal/usecases/ports"
+	"github.com/benoitpetit/soul/internal/util"
 )
 
 // SoulExtractorService implémente ports.IdentityExtractor
@@ -208,10 +209,10 @@ func (s *SoulExtractorService) extractTraitsAdvanced(_ context.Context, agentRes
 			}
 
 			// Intensité avec décélération logarithmique (diminishing returns)
-			intensity := pattern.Intensity * minFloat(1.0, mathLog1p(float64(occurrences))/1.5)
+			intensity := pattern.Intensity * util.Min(1.0, mathLog1p(float64(occurrences))/1.5)
 			// Confiance boostée par la diversité des preuves
 			uniqueEvidence := len(evidenceTexts)
-			_ = pattern.Confidence * minFloat(1.0, 0.5+float64(uniqueEvidence)*0.15)
+			_ = pattern.Confidence * util.Min(1.0, 0.5+float64(uniqueEvidence)*0.15)
 
 			// Sélectionner la meilleure preuve (la plus longue = plus de contexte)
 			bestEvidence := ""
@@ -450,7 +451,7 @@ func (s *SoulExtractorService) extractBehavioralSignatureAdvanced(_ context.Cont
 	// Détecter la curiosité (ratio questions / phrases)
 	questionCount := strings.Count(conversation, "?")
 	if len(sentences) > 0 {
-		behavior.CuriosityLevel = minFloat(1.0, float64(questionCount)/float64(len(sentences))*2.0)
+		behavior.CuriosityLevel = util.Min(1.0, float64(questionCount)/float64(len(sentences))*2.0)
 	}
 
 	// Détecter le style d'auto-correction
@@ -537,7 +538,7 @@ func (s *SoulExtractorService) extractEmotionalToneAdvanced(_ context.Context, a
 	// Calme
 	calmIndicators := []string{"calm", "peaceful", "steady", "composed", "relaxed", "serene", "gentle"}
 	if countOccurrencesBoundary(allText, calmIndicators) > 0 {
-		tone.Calmness = 0.7 + minFloat(0.3, float64(countOccurrencesBoundary(allText, calmIndicators))*0.05)
+		tone.Calmness = 0.7 + util.Min(0.3, float64(countOccurrencesBoundary(allText, calmIndicators))*0.05)
 	}
 
 	// Enthousiasme (exclut les usages négatifs)
@@ -573,13 +574,16 @@ func (s *SoulExtractorService) synthesizeTraitsAdvanced(observations []*entities
 			totalConfidence += 0.8
 			uniqueContexts[obs.Context] = struct{}{}
 		}
-		avgIntensity := weightedIntensity / maxFloat(totalConfidence, 0.01)
+		avgIntensity := weightedIntensity / util.MaxFloat(totalConfidence, 0.01)
 
 		// Confiance composite : base + diversité contextuelle + volume relatif
-		contextBoost := minFloat(0.3, float64(len(uniqueContexts))*0.05)
-		volumeBoost := minFloat(0.2, float64(len(obsList))/float64(sentenceCount)*2.0)
+		contextBoost := util.Min(0.3, float64(len(uniqueContexts))*0.05)
+		volumeBoost := 0.0
+		if sentenceCount > 0 {
+			volumeBoost = util.Min(0.2, float64(len(obsList))/float64(sentenceCount)*2.0)
+		}
 		baseConfidence := totalConfidence / float64(len(obsList))
-		compositeConfidence := minFloat(1.0, baseConfidence+contextBoost+volumeBoost)
+		compositeConfidence := util.Min(1.0, baseConfidence+contextBoost+volumeBoost)
 
 		trait := entities.NewPersonalityTrait(traitName, obsList[0].Category, avgIntensity)
 		// Augmenter la confiance du trait synthétisé
@@ -634,7 +638,7 @@ func (s *SoulExtractorService) calculateOverallConfidenceAdvanced(result *ports.
 	}
 	coverageBoost := 1.0 + float64(dimensionCount)*0.04
 
-	return minFloat(1.0, baseConfidence*coverageBoost)
+	return util.Min(1.0, baseConfidence*coverageBoost)
 }
 
 func (s *SoulExtractorService) detectCatchPhrasesNGram(responses []string) []string {
@@ -683,7 +687,7 @@ func (s *SoulExtractorService) detectCatchPhrasesNGram(responses []string) []str
 	})
 
 	var catchPhrases []string
-	for i := 0; i < minInt(len(scores), 5); i++ {
+	for i := 0; i < util.MinInt(len(scores), 5); i++ {
 		catchPhrases = append(catchPhrases, scores[i].phrase)
 	}
 	return catchPhrases
@@ -781,7 +785,7 @@ func extractValueIntensity(text string, sentences []string, lexicon map[string]f
 		return 0.0
 	}
 	// Intensité de base : 0.9 pour compatibilité historique, ajusté par volume
-	base := minFloat(0.95, 0.75+float64(count)*0.05)
+	base := util.Min(0.95, 0.75+float64(count)*0.05)
 
 	// Boost si le sentiment autour des mots-clés est positif
 	sentimentBoost := 0.0
@@ -794,7 +798,7 @@ func extractValueIntensity(text string, sentences []string, lexicon map[string]f
 			}
 		}
 	}
-	return minFloat(1.0, base+sentimentBoost)
+	return util.Min(1.0, base+sentimentBoost)
 }
 
 func sentenceSentiment(sentence string, lexicon map[string]float64) float64 {
@@ -870,27 +874,6 @@ func mathLog1p(x float64) float64 {
 		}
 	}
 	return result
-}
-
-func maxFloat(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func minFloat(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // --- Backward compatibility wrappers (used by tests) ---

@@ -129,7 +129,10 @@ func (s *SoulComposerService) ComposeIdentityPrompt(ctx context.Context, identit
 	}
 
 	// Estimer les tokens
-	tokenEstimate := len(prompt) / 4 // Approximation : ~4 chars/token
+	tokenEstimate, err := s.EstimateTokenCount(ctx, prompt)
+	if err != nil {
+		tokenEstimate = len(prompt) / 4
+	}
 	
 	return &valueobjects.IdentityContextPrompt{
 		Content:         prompt,
@@ -160,8 +163,11 @@ func (s *SoulComposerService) ComposeReinforcementPrompt(ctx context.Context, id
 		prompt += fmt.Sprintf("- Your identity has been preserved through this transition.")
 	}
 	
-	tokenEstimate := len(prompt) / 4
-	
+	tokenEstimate, err := s.EstimateTokenCount(ctx, prompt)
+	if err != nil {
+		tokenEstimate = len(prompt) / 4
+	}
+
 	return &valueobjects.IdentityContextPrompt{
 		Content:         prompt,
 		TokenEstimate:   tokenEstimate,
@@ -193,8 +199,11 @@ func (s *SoulComposerService) ComposeDiffusionAlert(ctx context.Context, drift *
 	prompt = replaceTag(prompt, "{{DETECTED_CHANGES}}", changes)
 	prompt = replaceTag(prompt, "{{EXPECTED_IDENTITY}}", "Your established identity (see previous context)")
 	
-	tokenEstimate := len(prompt) / 4
-	
+	tokenEstimate, err := s.EstimateTokenCount(ctx, prompt)
+	if err != nil {
+		tokenEstimate = len(prompt) / 4
+	}
+
 	return &valueobjects.IdentityContextPrompt{
 		Content:         prompt,
 		TokenEstimate:   tokenEstimate,

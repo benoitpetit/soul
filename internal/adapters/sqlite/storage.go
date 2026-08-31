@@ -15,7 +15,6 @@ import (
 	"github.com/benoitpetit/soul/internal/usecases/ports"
 	pkgports "github.com/benoitpetit/soul/pkg/ports"
 	"github.com/google/uuid"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // SoulSQLiteStorage implémente ports.SoulStorage avec SQLite
@@ -30,9 +29,18 @@ type SoulSQLiteStorage struct {
 
 // NewSoulSQLiteStorage crée un nouveau stockage SQLite
 func NewSoulSQLiteStorage(dbPath string) (*SoulSQLiteStorage, error) {
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=-64000&_mmap_size=268435456")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
+	db.SetConnMaxIdleTime(30 * time.Minute)
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 	
 	storage := &SoulSQLiteStorage{
@@ -179,19 +187,106 @@ func (s *SoulSQLiteStorage) initSchema() error {
 	
 	CREATE INDEX IF NOT EXISTS idx_soul_swaps_agent ON soul_model_swaps(agent_id);
 	
-	-- Table des liens identité-mémoire MIRA
 	CREATE TABLE IF NOT EXISTS soul_mira_links (
 		identity_id TEXT NOT NULL,
-		memory_id TEXT NOT NULL,
+		memory_id BLOB NOT NULL,
 		linked_at DATETIME NOT NULL,
 		PRIMARY KEY (identity_id, memory_id)
 	);
-	
+
 	CREATE INDEX IF NOT EXISTS idx_soul_mira_links_identity ON soul_mira_links(identity_id);
+
+	-- Migration: convert existing TEXT memory_id to BLOB for new databases
+	-- This block is a no-op if memory_id is already BLOB (after ALTER TABLE)
+	-- For pre-existing databases with TEXT memory_id, the conversion is handled
+	-- by the migrateMemoryIdColumn helper called after schema init.
 	`
 	
 	_, err := s.db.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Migrate soul_mira_links.memory_id from TEXT to BLOB for existing databases.
+	// This is safe to call repeatedly: it detects the current column type and
+	// only migrates when TEXT is found. New databases already use BLOB.
+	if err := s.migrateMemoryIdColumn(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// migrateMemoryIdColumn converts the memory_id column from TEXT to BLOB
+// for existing databases. This is a no-op for new databases that already use BLOB.
+func (s *SoulSQLiteStorage) migrateMemoryIdColumn() error {
+	// Check the current column type
+	var colType string
+	err := s.db.QueryRow(`SELECT typeof(memory_id) FROM soul_mira_links LIMIT 1`).Scan(&colType)
+	if err == sql.ErrNoRows {
+		// Table is empty, no migration needed
+		return nil
+	}
+	if err != nil {
+		// Table might not exist yet (shouldn't happen after schema init), but be safe
+		return nil
+	}
+
+	// If already BLOB, nothing to do
+	if colType == "blob" || colType == "BLOB" {
+		return nil
+	}
+
+	// Migrate: create new table with BLOB, copy data, swap
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin migration transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Create new table with BLOB column
+	_, err = tx.Exec(`
+		CREATE TABLE soul_mira_links_new (
+			identity_id TEXT NOT NULL,
+			memory_id BLOB NOT NULL,
+			linked_at DATETIME NOT NULL,
+			PRIMARY KEY (identity_id, memory_id)
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create new table: %w", err)
+	}
+
+	// Copy data, converting TEXT UUID to BLOB
+	_, err = tx.Exec(`
+		INSERT INTO soul_mira_links_new (identity_id, memory_id, linked_at)
+		SELECT identity_id,
+		       CAST(REPLACE(memory_id, '-', '') AS BLOB),
+		       linked_at
+		FROM soul_mira_links
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to copy data: %w", err)
+	}
+
+	// Drop old table and rename new one
+	_, err = tx.Exec(`DROP TABLE soul_mira_links`)
+	if err != nil {
+		return fmt.Errorf("failed to drop old table: %w", err)
+	}
+
+	_, err = tx.Exec(`ALTER TABLE soul_mira_links_new RENAME TO soul_mira_links`)
+	if err != nil {
+		return fmt.Errorf("failed to rename table: %w", err)
+	}
+
+	// Recreate index
+	_, err = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_soul_mira_links_identity ON soul_mira_links(identity_id)`)
+	if err != nil {
+		return fmt.Errorf("failed to recreate index: %w", err)
+	}
+
+	return tx.Commit()
 }
 
 // Close ferme la connexion à la base, seulement si ce storage en est propriétaire.
@@ -933,12 +1028,14 @@ func (s *SoulSQLiteStorage) GetMiraMemories(ctx context.Context, agentID, query 
 }
 
 func (s *SoulSQLiteStorage) LinkIdentityToMemory(ctx context.Context, identityID, memoryID uuid.UUID) error {
-	_, err := s.q().ExecContext(ctx,
-		"INSERT OR IGNORE INTO soul_mira_links (identity_id, memory_id, linked_at) VALUES (?, ?, ?)",
-		identityID.String(), memoryID.String(), time.Now(),
-	)
-	return err
-}
+		// Store UUID as BLOB: remove hyphens and store as hex string in BLOB
+		memoryIDHex := strings.ReplaceAll(memoryID.String(), "-", "")
+		_, err := s.q().ExecContext(ctx,
+			"INSERT OR IGNORE INTO soul_mira_links (identity_id, memory_id, linked_at) VALUES (?, ?, ?)",
+			identityID.String(), memoryIDHex, time.Now(),
+		)
+		return err
+	}
 
 func (s *SoulSQLiteStorage) GetLinkedMemories(ctx context.Context, identityID uuid.UUID) ([]ports.MiraMemoryReference, error) {
 	if s.miraProvider != nil {
@@ -966,16 +1063,20 @@ func (s *SoulSQLiteStorage) GetLinkedMemories(ctx context.Context, identityID uu
 	}
 	defer rows.Close()
 
-	var memories []ports.MiraMemoryReference
-	for rows.Next() {
-		mem := ports.MiraMemoryReference{}
-		var idStr string
-		if err := rows.Scan(&idStr, &mem.Content, &mem.MemoryType, &mem.Timestamp, &mem.Wing, &mem.Room); err != nil {
-			continue
+var memories []ports.MiraMemoryReference
+		for rows.Next() {
+			mem := ports.MiraMemoryReference{}
+			var idStr string
+			if err := rows.Scan(&idStr, &mem.Content, &mem.MemoryType, &mem.Timestamp, &mem.Wing, &mem.Room); err != nil {
+				continue
+			}
+			// Convert hex string without hyphens back to UUID string format
+			if len(idStr) == 32 {
+				idStr = fmt.Sprintf("%s-%s-%s-%s-%s", idStr[0:8], idStr[8:12], idStr[12:16], idStr[16:20], idStr[20:32])
+			}
+			mem.MemoryID = uuid.MustParse(idStr)
+			memories = append(memories, mem)
 		}
-		mem.MemoryID = uuid.MustParse(idStr)
-		memories = append(memories, mem)
-	}
 	return memories, rows.Err()
 }
 

@@ -3,6 +3,7 @@
 /soul.exe
 bin/
 /bin/
+build/
 *.exe
 
 # Data directories (shared with MIRA)
@@ -22,7 +23,17 @@ Thumbs.db
 # Go
 *.test
 coverage.txt
+*.out
 
 # Temporary files
 *.tmp
 *.log
+
+# Documents non-source
+*.pdf
+
+# Local configuration
+config.yaml
+
+# Internal development docs
+docs/superpowers/

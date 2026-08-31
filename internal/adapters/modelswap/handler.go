@@ -9,6 +9,7 @@ import (
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
+	"github.com/benoitpetit/soul/internal/util"
 )
 
 // SoulModelSwapHandler implémente ports.ModelSwapHandler
@@ -61,7 +62,7 @@ func (h *SoulModelSwapHandler) ReinforceIdentity(ctx context.Context, identity *
 	for i := range reinforced.PersonalityTraits {
 		if reinforced.PersonalityTraits[i].Confidence > 0.7 {
 			// Renforcer les traits bien établis
-			reinforced.PersonalityTraits[i].Confidence = min(reinforced.PersonalityTraits[i].Confidence*1.1, 1.0)
+			reinforced.PersonalityTraits[i].Confidence = util.Min(reinforced.PersonalityTraits[i].Confidence*1.1, 1.0)
 		}
 	}
 	
@@ -79,13 +80,6 @@ func (h *SoulModelSwapHandler) MeasurePostSwapDrift(ctx context.Context, swap *v
 	
 	// La dérive est stockée dans le contexte du swap
 	return swap.IdentityDrift, nil
-}
-
-func min(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // SoulMergerService implémente ports.SoulMerger
@@ -235,7 +229,7 @@ func (m *SoulMergerService) mergeSynthesize(merged, a, b *entities.IdentitySnaps
 		merged.BehavioralSignature = b.BehavioralSignature
 	}
 	
-	merged.ConfidenceScore = maxFloat(a.ConfidenceScore, b.ConfidenceScore)
+	merged.ConfidenceScore = util.MaxFloat(a.ConfidenceScore, b.ConfidenceScore)
 }
 
 // --- Helpers d'interpolation ---
@@ -306,7 +300,7 @@ func (m *SoulMergerService) mergeTraits(a, b []entities.PersonalityTrait, weight
 			if traitA.Name == traitB.Name {
 				// Fusionner
 				merged[i].Intensity = traitA.Intensity*weightA + traitB.Intensity*weightB
-				merged[i].Confidence = maxFloat(traitA.Confidence, traitB.Confidence)
+				merged[i].Confidence = util.MaxFloat(traitA.Confidence, traitB.Confidence)
 				found = true
 				break
 			}
@@ -321,8 +315,8 @@ func (m *SoulMergerService) mergeTraits(a, b []entities.PersonalityTrait, weight
 
 func (m *SoulMergerService) selectBetterVoice(a, b *entities.VoiceProfile) entities.VoiceProfile {
 	// Sélectionner le plus équilibré (proche de 0.5 sur toutes les dimensions)
-	balanceA := abs(a.FormalityLevel-0.5) + abs(a.HumorLevel-0.5) + abs(a.EmpathyLevel-0.5)
-	balanceB := abs(b.FormalityLevel-0.5) + abs(b.HumorLevel-0.5) + abs(b.EmpathyLevel-0.5)
+	balanceA := util.Abs(a.FormalityLevel-0.5) + util.Abs(a.HumorLevel-0.5) + util.Abs(a.EmpathyLevel-0.5)
+	balanceB := util.Abs(b.FormalityLevel-0.5) + util.Abs(b.HumorLevel-0.5) + util.Abs(b.EmpathyLevel-0.5)
 	if balanceA < balanceB {
 		return *a
 	}
@@ -351,11 +345,11 @@ func (m *SoulMergerService) selectBetterTraits(a, b []entities.PersonalityTrait)
 }
 
 func (m *SoulMergerService) calculateValuesSimilarity(a, b *entities.ValueSystem) float64 {
-	diff := abs(a.PrioritizesAccuracy - b.PrioritizesAccuracy)
-	diff += abs(a.PrioritizesHelpfulness - b.PrioritizesHelpfulness)
-	diff += abs(a.PrioritizesEfficiency - b.PrioritizesEfficiency)
-	diff += abs(a.PrioritizesClarity - b.PrioritizesClarity)
-	return 1.0 - min(diff/4.0, 1.0)
+	diff := util.Abs(a.PrioritizesAccuracy - b.PrioritizesAccuracy)
+	diff += util.Abs(a.PrioritizesHelpfulness - b.PrioritizesHelpfulness)
+	diff += util.Abs(a.PrioritizesEfficiency - b.PrioritizesEfficiency)
+	diff += util.Abs(a.PrioritizesClarity - b.PrioritizesClarity)
+	return 1.0 - util.Min(diff/4.0, 1.0)
 }
 
 func (m *SoulMergerService) calculateTraitsSimilarity(a, b []entities.PersonalityTrait) float64 {
@@ -373,26 +367,5 @@ func (m *SoulMergerService) calculateTraitsSimilarity(a, b []entities.Personalit
 		}
 	}
 	
-	return float64(matches) / float64(maxInt(len(a), len(b)))
-}
-
-func abs(x float64) float64 {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func maxFloat(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
+	return float64(matches) / float64(util.MaxInt(len(a), len(b)))
 }

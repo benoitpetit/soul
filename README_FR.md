@@ -13,7 +13,7 @@
 
   *100% Local • Déterministe • Identité Versionnée • Agnostique au Modèle*
 
-  [Changelog](#changelog) • [Skill](SKILL.md) • [English](README.md) • [Intégration MIRA](https://github.com/benoitpetit/mira)
+  [Changelog](CHANGELOG.md) • [Skill](SKILL.md) • [English](README.md) • [Intégration MIRA](https://github.com/benoitpetit/mira)
 
 </div>
 
@@ -24,70 +24,70 @@
 - [Relation avec MIRA](#relation-avec-mira)
 - [Pourquoi SOUL ?](#pourquoi-soul-)
 - [Architecture](#architecture)
-- [Modèle d'identité](#modele-didentite)
-- [Schéma de base de données](#schema-de-base-de-donnees)
+- [Modèle d'identité](#modèle-didentité)
+- [Schéma de base de données](#schéma-de-base-de-données)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Utilisation CLI](#utilisation-cli)
 - [Outils MCP](#outils-mcp)
-- [Déploiement](#deploiement)
-- [Détection de dérive](#detection-de-derive)
+- [Déploiement](#déploiement)
+- [Détection de dérive](#détection-de-dérive)
 - [Tests](#tests)
 - [Module](#module)
-- [Changelog](#changelog)
+- [Changelog](CHANGELOG.md)
 
 ---
 
 ## Relation avec MIRA
 
-| Aspect | Detail |
+| Aspect | Détail |
 |--------|--------|
-| **Dependance** | Aucune - SOUL compile et s'execute sans MIRA |
-| **Integration** | Peut fonctionner en standalone (serveur MCP separe) ou integre dans MIRA (binaire unique, 16 outils) |
-| **Base de donnees** | SOUL ajoute des tables `soul_*` a `.mira/mira.db` |
-| **Acces croise** | SOUL peut lire la table `verbatim` de MIRA pour enrichir le contexte identitaire |
-| **Deploiement** | Standalone via stdio JSON-RPC, ou integre dans le processus MIRA |
+| **Dépendance** | Aucune — SOUL compile et s'exécute sans MIRA |
+| **Intégration** | Serveur MCP standalone, ou intégré dans MIRA (binaire unique, 17 outils) |
+| **Base de données** | SOUL ajoute des tables `soul_*` à `.mira/mira.db` |
+| **Accès croisé** | SOUL peut lire la table `verbatim` de MIRA pour enrichir le contexte identitaire |
+| **Déploiement** | Standalone via stdio JSON-RPC, ou intégré dans le processus MIRA |
 
-SOUL est **optionnel**. Un client peut se connecter a MIRA seulement, SOUL seulement, ou les deux.
+SOUL est **optionnel**. Un client peut se connecter à MIRA uniquement, à SOUL uniquement, ou aux deux.
 
-### Integration integree (MIRA + SOUL)
+### Intégration embarquée (MIRA + SOUL)
 
-MIRA peut integrer SOUL comme un binaire unique avec 16 outils MCP :
+MIRA peut intégrer SOUL en un binaire unique avec 17 outils MCP :
 
 ```bash
-# MIRA avec SOUL integre - binaire unique, 16 outils
 ./mira --config config.yaml --with-soul
 ```
 
-Lorsqu'il est integre, SOUL partage la connexion SQLite de MIRA (`ownsDB = false`). Si l'initialisation de SOUL echoue, MIRA continue avec ses 8 outils.
+Lorsqu'il est intégré, SOUL partage la connexion SQLite de MIRA (`ownsDB = false`). Si l'initialisation de SOUL échoue, MIRA continue avec ses 9 outils.
 
 ---
 
 ## Pourquoi SOUL ?
 
-Les agents LLM perdent leur personnalite entre les sessions et lors des changements de modele :
+Les agents LLM perdent leur personnalité entre les sessions et lors des changements de modèle :
 
 ```
-L'utilisateur parle a "Claude-3-Assistant" pendant 6 mois.
-L'agent a developpe une personnalite unique : empathique, analytique,
-avec un humour subtil et une preference pour les analogies.
+L'utilisateur parle à "Claude-3-Assistant" pendant 6 mois.
+L'agent a développé une personnalité unique : empathique, analytique,
+avec un humour subtil et une préférence pour les analogies.
 
-Le modele passe a GPT-4. MIRA se souvient de tous les faits.
-Mais l'agent repond maintenant differemment :
+Le modèle passe à GPT-4. MIRA se souvient de tous les faits.
+Mais l'agent répond maintenant différemment :
 - Plus formel, moins chaleureux
 - Plus d'analogies
-- Ne reconnait plus les blagues de l'utilisateur
-- A "oublie" comment reaghir aux frustrations
+- Ne reconnaît plus les blagues de l'utilisateur
+- A "oublié" comment réagir aux frustrations
 
-L'utilisateur a l'impression de parler a un ETRANGER.
+L'utilisateur a l'impression de parler à un ÉTRANGER.
 ```
 
-SOUL resout ce probleme en :
-1. **Capturant** les traits de personnalite, le profil vocal, le style de communication, les valeurs et le ton emotionnel
-2. **Stockant** des instantanes d'identite versionnes dans la base de donnees partagee
-3. **Rappelant** un prompt d'identite structure pour l'injection dans le contexte LLM
-4. **Detectant** la derive identitaire et alertant lorsqu'un changement significatif se produit
-5. **Gerant** les changements de modele en generant un prompt de renforcement
+SOUL résout ce problème en :
+
+1. **Capturant** les traits de personnalité, le profil vocal, le style de communication, les valeurs et le ton émotionnel
+2. **Stockant** des instantanés d'identité versionnés dans la base de données partagée
+3. **Rappelant** un prompt d'identité structuré pour l'injection dans le contexte LLM
+4. **Détectant** la dérive identitaire et alertant lors d'un changement significatif
+5. **Gérant** les changements de modèle en générant un prompt de renforcement
 
 ---
 
@@ -95,8 +95,8 @@ SOUL resout ce probleme en :
 
 ```
 soul/
-├── cmd/soul/main.go              # Point d'entree CLI + dispatcheur MCP
-├── config.example.yaml           # Reference de configuration
+├── cmd/soul/main.go              # Point d'entrée CLI + dispatcheur MCP
+├── config.example.yaml           # Référence de configuration
 ├── internal/
 │   ├── app/
 │   │   ├── app.go                # Racine de composition
@@ -105,60 +105,60 @@ soul/
 │   │   ├── entities/             # IdentitySnapshot, PersonalityTrait, VoiceProfile...
 │   │   └── valueobjects/         # SoulQuery, DriftReport, ModelSwap...
 │   ├── usecases/
-│   │   └── interactors/          # Capture, Recall, Drift, Swap, Evolution, Merge
+│   │   └── interactors/          # Capture, Recall, Drift, Swap, Evolution, Merge, Update
 │   ├── adapters/
-│   │   ├── sqlite/storage.go     # Stockage SQLite (partage avec MIRA)
-│   │   ├── composition/service.go # Composeur de prompt d'identite
-│   │   ├── drift/detector.go     # Algorithme de detection de derive
-│   │   ├── embedder/service.go   # Embedder d'identite 13 dimensions
-│   │   ├── extraction/service.go # Extraction de traits depuis conversations
-│   │   └── modelswap/handler.go  # Logique de changement et fusion de modele
+│   │   ├── sqlite/storage.go     # Stockage SQLite (partagé avec MIRA)
+│   │   ├── composition/service.go # Composeur de prompt d'identité
+│   │   ├── drift/detector.go     # Algorithme de détection de dérive
+│   │   ├── embedder/service.go   # Embedder d'identité 13 dimensions
+│   │   ├── extraction/service.go # Extraction de traits depuis les conversations
+│   │   └── modelswap/handler.go  # Logique de changement et fusion de modèle
 │   └── interfaces/
 │       └── mcp/server.go         # Serveur MCP (8 outils, stdio JSON-RPC)
 ```
 
-**Architecture hexagonale** - le domaine n'importe jamais les adaptateurs. Toutes les dependances externes circulent vers l'interieur a travers les ports.
+**Architecture hexagonale** — le domaine n'importe jamais les adaptateurs. Toutes les dépendances externes circulent vers l'intérieur à travers les ports.
 
 ---
 
-## Modele d'identite
+## Modèle d'identité
 
 Un `IdentitySnapshot` contient :
 
-- **PersonalityTraits** - Traits nommes avec categorie, intensite (0-1), confiance (0-1), compte d'evidences
-- **VoiceProfile** - Formalite, verbosite, richesse du vocabulaire, usage des metaphores
-- **CommunicationStyle** - Directitude, empathie, humour, frequence des questions, usage des exemples
-- **BehavioralSignature** - Modeles de reponse, style de raisonnement, gestion des erreurs
-- **ValueSystem** - Positions ethiques, priorites, limites
-- **EmotionalTone** - Valence de base, excitation, expressivite
+- **PersonalityTraits** — traits nommés avec catégorie, intensité (0–1), confiance (0–1), nombre d'évidences
+- **VoiceProfile** — formalité, verbosité, richesse du vocabulaire, usage des métaphores
+- **CommunicationStyle** — directitude, empathie, humour, fréquence des questions, usage des exemples
+- **BehavioralSignature** — modèles de réponse, style de raisonnement, gestion des erreurs
+- **ValueSystem** — positions éthiques, priorités, limites
+- **EmotionalTone** — valence de base, excitation, expressivité
 
-Categories de traits : `cognitive`, `emotional`, `social`, `epistemic`, `expressive`, `ethical`
+Catégories de traits : `cognitive`, `emotional`, `social`, `epistemic`, `expressive`, `ethical`
 
 ---
 
-## Schema de base de donnees
+## Schéma de base de données
 
-SOUL ajoute ces tables a la base de donnees SQLite partagee :
+SOUL ajoute ces tables à la base de données SQLite partagée :
 
-| Table | But |
-|-------|-----|
-| `soul_identities` | Instantanes d'identite versions par agent |
-| `soul_traits` | Traits de personnalite agreges avec confiance |
+| Table | Rôle |
+|-------|------|
+| `soul_identities` | Instantanés d'identité versionnés par agent |
+| `soul_traits` | Traits de personnalité agrégés avec confiance |
 | `soul_observations` | Observations brutes extraites des conversations |
-| `soul_diffs` | Diffs d'evolution entre versions consecutives |
-| `soul_model_swaps` | Historique des transitions de modele |
-| `soul_mira_links` | Liens entre instantanes d'identite et memoires MIRA |
+| `soul_diffs` | Diffs d'évolution entre versions consécutives |
+| `soul_model_swaps` | Historique des transitions de modèle |
+| `soul_mira_links` | Liens entre instantanés d'identité et mémoires MIRA |
 
 ---
 
 ## Installation
 
-### Prerequis
+### Prérequis
 
 - Go 1.23+
 - GCC (pour la compilation CGo de `go-sqlite3`)
 
-### Construction
+### Compilation
 
 ```bash
 git clone https://github.com/benoitpetit/soul
@@ -166,7 +166,7 @@ cd soul
 go build -o soul ./cmd/soul
 ```
 
-### Execution
+### Exécution
 
 ```bash
 ./soul help
@@ -182,29 +182,28 @@ Copiez `config.example.yaml` pour configurer SOUL :
 cp config.example.yaml soul.yaml
 ```
 
-Parametres cles :
+Paramètres clés :
 
 ```yaml
 soul:
   storage:
-    path: ".mira/mira.db"     # Doit correspondre au chemin de la base MIRA
+    path: ".mira/mira.db"       # Doit correspondre au chemin de la base MIRA
 
   drift_detection:
-    threshold: 0.3             # 30% de changement declenche une alerte
+    threshold: 0.3               # 30% de changement déclenche une alerte
     window_size: 10
 
   recall:
     default_budget_tokens: 1000
-    # enrich_with_mira_memories et max_mira_memories sont documentés mais PAS ENCORE IMPLÉMENTÉS.
-    # enrich_with_mira_memories: true
-    # max_mira_memories: 5
+    enrich_with_mira_memories: false  # Active l'enrichissement avec les mémoires MIRA (nécessite l'intégration MIRA)
+    max_mira_memories: 5
 ```
 
 ---
 
 ## Utilisation CLI
 
-### Capturer l'identite depuis une conversation
+### Capturer l'identité depuis une conversation
 
 ```bash
 soul capture \
@@ -213,41 +212,41 @@ soul capture \
   --model claude-3-sonnet
 ```
 
-### Rappeler l'identite pour injection dans le contexte LLM
+### Rappeler l'identité pour injection dans le contexte LLM
 
 ```bash
 soul recall --agent mon-agent --budget 800
 ```
 
-La sortie est le prompt d'identite pret a coller dans un message systeme.
+La sortie est le prompt d'identité prêt à coller dans un message système.
 
-### Verifier la derive identitaire
+### Vérifier la dérive identitaire
 
 ```bash
 soul drift --agent mon-agent --window 10
 ```
 
-### Gerer un changement de modele
+### Gérer un changement de modèle
 
 ```bash
 soul swap --agent mon-agent --from gpt-4 --to claude-3-sonnet
 ```
 
-Genere un prompt de renforcement a injecter dans le premier message du nouveau modele.
+Génère un prompt de renforcement à injecter dans le premier message du nouveau modèle.
 
-### Afficher le statut d'identite
+### Afficher le statut d'identité
 
 ```bash
 soul status --agent mon-agent
 ```
 
-### Afficher l'historique d'evolution
+### Afficher l'historique d'évolution
 
 ```bash
 soul history --agent mon-agent --limit 20
 ```
 
-### Demarrer le serveur MCP
+### Démarrer le serveur MCP
 
 ```bash
 soul mcp --storage .mira/mira.db
@@ -261,62 +260,65 @@ SOUL expose **8 outils MCP** via stdio JSON-RPC :
 
 | Outil | Description |
 |-------|-------------|
-| `soul_capture` | Capturer l'identite depuis une conversation |
-| `soul_recall` | Rappeler le prompt d'identite pour injection LLM |
-| `soul_drift` | Analyser la derive identitaire |
-| `soul_swap` | Gerer le changement de modele + generer le prompt de renforcement |
-| `soul_status` | Obtenir le statut d'identite actuel |
-| `soul_history` | Obtenir l'historique d'evolution d'identite |
-| `soul_update` | Mettre a jour l'identite via directive en langage naturel (FR/EN) |
-| `soul_patch` | Appliquer un patch structure et explicite a l'identite |
+| `soul_capture` | Capturer l'identité depuis une conversation |
+| `soul_recall` | Rappeler le prompt d'identité pour injection LLM |
+| `soul_drift` | Analyser la dérive identitaire |
+| `soul_swap` | Gérer le changement de modèle et générer le prompt de renforcement |
+| `soul_status` | Obtenir le statut d'identité actuel |
+| `soul_history` | Obtenir l'historique d'évolution d'identité |
+| `soul_update` | Mettre à jour l'identité via directive en langage naturel (FR/EN) |
+| `soul_patch` | Appliquer un patch structuré et explicite à l'identité |
 
 ---
 
-## Deploiement
+## Déploiement
 
-### Option 1 : Integre dans MIRA (recommande)
+### Option 1 : Intégré dans MIRA (recommandé)
 
-SOUL est **opt-in** dans MIRA. Par defaut, MIRA fonctionne seul (8 outils). Pour activer SOUL :
+SOUL est **opt-in** dans MIRA. Par défaut, MIRA fonctionne seul (9 outils). Pour activer SOUL :
 
 ```bash
 # Activer SOUL via le flag CLI
 ./mira --config config.yaml --with-soul
+```
 
-# Ou activer SOUL via la configuration
+Ou activer SOUL via la configuration :
+
 ```yaml
 soul:
   enabled: true
 ```
 
-Quand il est active, les 8 outils SOUL sont enregistres aux cotes des 8 outils MIRA (16 au total).
+Quand il est activé, les 8 outils SOUL sont enregistrés aux côtés des 9 outils MIRA (17 au total).
 
 ### Option 2 : SOUL standalone
 
-SOUL peut fonctionner comme un serveur MCP separe, avec ou sans MIRA :
+SOUL peut fonctionner comme un serveur MCP séparé, avec ou sans MIRA :
 
 ```bash
-# Standalone avec sa propre base de donnees
+# Standalone avec sa propre base de données
 soul mcp --storage /path/to/soul.db
 
 # Standalone partageant la base de MIRA
 soul mcp --storage /path/to/.mira/mira.db
 ```
 
-### Option 3 : MIRA et SOUL comme serveurs separes
+### Option 3 : MIRA et SOUL comme serveurs séparés
 
 ```bash
-# Terminal 1 - MIRA (SOUL desactive par defaut)
+# Terminal 1 — MIRA (SOUL désactivé par défaut)
 ./mira --config /path/to/mira/config.yaml
 
-# Terminal 2 - SOUL (partage la base de MIRA)
+# Terminal 2 — SOUL (partage la base de MIRA)
 ./soul mcp --storage /path/to/.mira/mira.db
 ```
 
-Les deux fonctionnent comme des processus de serveur MCP separes enregistres dans la configuration de votre client MCP.
+Les deux fonctionnent comme des processus de serveur MCP séparés enregistrés dans la configuration de votre client MCP.
 
 ### Configuration client MCP
 
-**b0p :**
+**OpenCode / b0p :**
+
 ```json
 {
   "mcpServers": {
@@ -335,6 +337,7 @@ Les deux fonctionnent comme des processus de serveur MCP separes enregistres dan
 ```
 
 **Claude Desktop :**
+
 ```json
 {
   "mcpServers": {
@@ -354,24 +357,24 @@ Les deux fonctionnent comme des processus de serveur MCP separes enregistres dan
 
 | Configuration | Outils disponibles |
 |---------------|-------------------|
-| MIRA seulement | 8 (`mira_*`) |
+| MIRA uniquement | 9 (`mira_*`) |
 | SOUL standalone | 8 (`soul_*`) |
-| MIRA + SOUL (serveurs separes) | 16 (`mira_*` + `soul_*`) |
-| MIRA avec SOUL integre (binaire unique) | 16 (`mira_*` + `soul_*`) |
+| MIRA + SOUL (serveurs séparés) | 17 (`mira_*` + `soul_*`) |
+| MIRA avec SOUL intégré (binaire unique) | 17 (`mira_*` + `soul_*`) |
 
-Les noms d'outils ne rentrent jamais en collision - MIRA utilise le prefixe `mira_`, SOUL utilise le prefixe `soul_`.
+Les noms d'outils ne rentrent jamais en collision — MIRA utilise le préfixe `mira_`, SOUL utilise le préfixe `soul_`.
 
 ---
 
-## Detection de derive
+## Détection de dérive
 
-SOUL calcule la derive en comparant l'instantane actuel contre N versions precedentes :
+SOUL calcule la dérive en comparant l'instantané actuel contre N versions précédentes :
 
-- Distance par dimension : profil vocal, traits de personnalite, systeme de valeurs, ton emotionnel (4 des 6 dimensions ; le style de communication et la signature comportementale ne sont pas encore surveilles pour la derive)
-- Score moyen de `DriftScore` a travers les dimensions
-- Alerte quand `DriftScore > threshold` (defaut : 0.3)
+- Distance par dimension sur les 6 dimensions : profil vocal, traits de personnalité, système de valeurs, ton émotionnel, style de communication, signature comportementale
+- Score moyen de `DriftScore` à travers les dimensions
+- Alerte quand `DriftScore > threshold` (défaut : 0.3)
 
-Action recommandee quand la derive est significative : injecter le prompt de renforcement de `soul_recall` ou `soul_swap` dans le prochain contexte.
+Action recommandée quand la dérive est significative : injecter le prompt de renforcement de `soul_recall` ou `soul_swap` dans le prochain contexte.
 
 ---
 
@@ -381,7 +384,7 @@ Action recommandee quand la derive est significative : injecter le prompt de ren
 go test ./... -count=1
 ```
 
-Tous les packages passent avec une base de donnees SQLite en memoire. L'absence de tables MIRA est geree gracefully (requetes de repli, resultats vides au lieu d'erreurs).
+Tous les packages passent avec une base de données SQLite en mémoire. L'absence de tables MIRA est gérée gracieusement (requêtes de repli, résultats vides plutôt qu'erreurs).
 
 ---
 
@@ -391,28 +394,12 @@ Tous les packages passent avec une base de donnees SQLite en memoire. L'absence 
 github.com/benoitpetit/soul
 ```
 
-**Depot :** https://github.com/benoitpetit/soul
+**Dépôt :** https://github.com/benoitpetit/soul
 
-Go 1.23.2 - SQLite via `mattn/go-sqlite3` - MCP via `mark3labs/mcp-go v0.2.0`
+Go 1.23.2 — SQLite via `mattn/go-sqlite3` — MCP via `mark3labs/mcp-go v0.2.0`
 
 ---
 
 ## Changelog
 
-### v0.0.6 (2026-04-24)
-
-- 🚀 Nouvelle version 0.0.6
-
-### v0.0.5 (2026-04-24)
-
-- 🚀 Nouvelle version 0.0.5
-
-### v0.0.4 (2026-04-24)
-
-- **Configuration unifiée en mode intégré** : Ajout de `NewApplicationWithDBAndConfig` pour que MIRA puisse transmettre une `SoulConfig` complète lors de l'intégration de SOUL. Le mode intégré supporte désormais les mêmes options de réglage que le mode standalone (seuil de dérive, budget de rappel, confiance d'extraction, etc.).
-- **Expansion de l'API publique** : Exposition des alias `soul.Config` et `soul.DefaultConfig()` pour les modules externes.
-- **Script de pré-publication** : Ajout de `scripts/prepublish.sh` pour l'automatisation du bump de version, build, tests et benchmarks.
-
-### v0.0.3 (2026-04-17)
-
-- Version stable initiale avec serveur MCP, capture d'identité, détection de dérive, gestion du changement de modèle et suivi d'évolution.
+Voir [CHANGELOG.md](CHANGELOG.md) pour l'historique complet des releases.

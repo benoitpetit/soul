@@ -13,7 +13,7 @@
 
   *100% Local • Deterministic • Versioned Identity • Model-Agnostic*
 
-  [Changelog](#changelog) • [Skill](SKILL.md) • [Français](README_FR.md) • [MIRA Integration](https://github.com/benoitpetit/mira)
+  [Changelog](CHANGELOG.md) • [Skill](SKILL.md) • [Français](README_FR.md) • [MIRA Integration](https://github.com/benoitpetit/mira)
 
 </div>
 
@@ -34,7 +34,7 @@
 - [Drift Detection](#drift-detection)
 - [Testing](#testing)
 - [Module](#module)
-- [Changelog](#changelog)
+- [Changelog](CHANGELOG.md)
 
 ---
 
@@ -42,8 +42,8 @@
 
 | Aspect | Detail |
 |--------|--------|
-| **Dependency** | None - SOUL compiles and runs without MIRA |
-| **Integration** | Can run standalone (separate MCP server) or embedded in MIRA (single binary, 16 tools) |
+| **Dependency** | None — SOUL compiles and runs without MIRA |
+| **Integration** | Standalone MCP server, or embedded in MIRA (single binary, 17 tools) |
 | **Database** | SOUL adds `soul_*` tables to MIRA's `.mira/mira.db` |
 | **Cross-access** | SOUL can read MIRA's `verbatim` table to enrich identity context |
 | **Deployment** | Standalone via stdio JSON-RPC, or embedded in MIRA process |
@@ -52,14 +52,13 @@ SOUL is **opt-in**. A client can connect to MIRA only, SOUL only, or both.
 
 ### Embedded Integration (MIRA + SOUL)
 
-MIRA can embed SOUL as a single binary with 16 MCP tools:
+MIRA can embed SOUL as a single binary with 17 MCP tools:
 
 ```bash
-# MIRA with embedded SOUL - single binary, 16 tools
 ./mira --config config.yaml --with-soul
 ```
 
-When embedded, SOUL shares MIRA's SQLite connection (`ownsDB = false`). If SOUL initialization fails, MIRA continues with its 8 tools.
+When embedded, SOUL shares MIRA's SQLite connection (`ownsDB = false`). If SOUL initialization fails, MIRA continues with its 9 tools.
 
 ---
 
@@ -70,23 +69,24 @@ LLM agents lose their personality between sessions and when switching models:
 ```
 User talks to "Claude-3-Assistant" for 6 months.
 The agent developed a unique personality: empathetic, analytical,
-with subtle humor and preference for analogies.
+with subtle humor and a preference for analogies.
 
-Model switches to GPT-4. MIRA recalls all facts.
+Model switches to GPT-4. MIRA recalls all the facts.
 But the agent now responds differently:
 - More formal, less warm
 - No more analogies
-- Doesn't recognize user's jokes
-- Has "forgotten" how to react to frustrations
+- Doesn't recognize the user's jokes
+- Has "forgotten" how to react to frustration
 
 The user feels like they're talking to a STRANGER.
 ```
 
 SOUL solves this by:
+
 1. **Capturing** personality traits, voice profile, communication style, values, and emotional tone
 2. **Storing** versioned identity snapshots in the shared database
 3. **Recalling** a structured identity prompt for LLM context injection
-4. **Detecting** identity drift and alerting when significant change occurs
+4. **Detecting** identity drift and alerting when a significant change occurs
 5. **Handling** model swaps by generating a reinforcement prompt
 
 ---
@@ -105,19 +105,19 @@ soul/
 │   │   ├── entities/             # IdentitySnapshot, PersonalityTrait, VoiceProfile...
 │   │   └── valueobjects/         # SoulQuery, DriftReport, ModelSwap...
 │   ├── usecases/
-│   │   └── interactors/          # Capture, Recall, Drift, Swap, Evolution, Merge
+│   │   └── interactors/          # Capture, Recall, Drift, Swap, Evolution, Merge, Update
 │   ├── adapters/
 │   │   ├── sqlite/storage.go     # SQLite storage (shared with MIRA)
 │   │   ├── composition/service.go # Identity prompt composer
-│   │   ├── drift/detector.go    # Drift detection algorithm
+│   │   ├── drift/detector.go     # Drift detection algorithm
 │   │   ├── embedder/service.go   # 13-dim identity embedder
 │   │   ├── extraction/service.go # Trait extraction from conversations
-│   │   └── modelswap/handler.go # Model swap + merge logic
+│   │   └── modelswap/handler.go  # Model swap + merge logic
 │   └── interfaces/
-│       └── mcp/server.go        # MCP server (8 tools, stdio JSON-RPC)
+│       └── mcp/server.go         # MCP server (8 tools, stdio JSON-RPC)
 ```
 
-**Hexagonal architecture** - domain never imports adapters. All external dependencies flow inward through ports.
+**Hexagonal architecture** — domain never imports adapters. All external dependencies flow inward through ports.
 
 ---
 
@@ -125,12 +125,12 @@ soul/
 
 An `IdentitySnapshot` contains:
 
-- **PersonalityTraits** - Named traits with category, intensity (0-1), confidence (0-1), evidence count
-- **VoiceProfile** - Formality, verbosity, vocabulary richness, metaphor usage
-- **CommunicationStyle** - Directness, empathy, humor, question frequency, example usage
-- **BehavioralSignature** - Response patterns, reasoning style, error handling
-- **ValueSystem** - Ethical stances, priorities, boundaries
-- **EmotionalTone** - Baseline valence, arousal, expressiveness
+- **PersonalityTraits** — named traits with category, intensity (0–1), confidence (0–1), evidence count
+- **VoiceProfile** — formality, verbosity, vocabulary richness, metaphor usage
+- **CommunicationStyle** — directness, empathy, humor, question frequency, example usage
+- **BehavioralSignature** — response patterns, reasoning style, error handling
+- **ValueSystem** — ethical stances, priorities, boundaries
+- **EmotionalTone** — baseline valence, arousal, expressiveness
 
 Trait categories: `cognitive`, `emotional`, `social`, `epistemic`, `expressive`, `ethical`
 
@@ -187,17 +187,16 @@ Key settings:
 ```yaml
 soul:
   storage:
-    path: ".mira/mira.db"     # Must match MIRA's database path
+    path: ".mira/mira.db"       # Must match MIRA's database path
 
   drift_detection:
-    threshold: 0.3             # 30% change triggers drift alert
+    threshold: 0.3               # 30% change triggers a drift alert
     window_size: 10
 
   recall:
     default_budget_tokens: 1000
-    # enrich_with_mira_memories and max_mira_memories are documented but NOT YET IMPLEMENTED.
-    # enrich_with_mira_memories: true
-    # max_mira_memories: 5
+    enrich_with_mira_memories: false  # Enable MIRA memory enrichment (requires MIRA integration)
+    max_mira_memories: 5
 ```
 
 ---
@@ -219,7 +218,7 @@ soul capture \
 soul recall --agent my-agent --budget 800
 ```
 
-Output is the identity prompt ready to paste into a system message.
+The output is an identity prompt ready to paste into a system message.
 
 ### Check identity drift
 
@@ -247,7 +246,7 @@ soul status --agent my-agent
 soul history --agent my-agent --limit 20
 ```
 
-### Start MCP server
+### Start the MCP server
 
 ```bash
 soul mcp --storage .mira/mira.db
@@ -264,11 +263,11 @@ SOUL exposes **8 MCP tools** over stdio JSON-RPC:
 | `soul_capture` | Capture identity from a conversation |
 | `soul_recall` | Recall identity prompt for LLM injection |
 | `soul_drift` | Analyze identity drift |
-| `soul_swap` | Handle model swap + generate reinforcement prompt |
+| `soul_swap` | Handle model swap and generate reinforcement prompt |
 | `soul_status` | Get current identity status |
 | `soul_history` | Get identity evolution history |
 | `soul_update` | Update identity via natural language directive (FR/EN) |
-| `soul_patch` | Apply structured explicit patch to identity |
+| `soul_patch` | Apply a structured explicit patch to identity |
 
 ---
 
@@ -276,19 +275,21 @@ SOUL exposes **8 MCP tools** over stdio JSON-RPC:
 
 ### Option 1: Embedded in MIRA (recommended)
 
-SOUL is **opt-in** within MIRA. By default, MIRA runs solo (8 tools). To activate SOUL:
+SOUL is **opt-in** within MIRA. By default, MIRA runs solo (9 tools). To activate SOUL:
 
 ```bash
 # Enable SOUL via CLI flag
 ./mira --config config.yaml --with-soul
+```
 
-# Or enable SOUL via config
+Or enable SOUL via config:
+
 ```yaml
 soul:
   enabled: true
 ```
 
-When enabled, the 8 SOUL tools are registered alongside the 8 MIRA tools (16 total).
+When enabled, the 8 SOUL tools are registered alongside MIRA's 9 tools (17 total).
 
 ### Option 2: Standalone SOUL
 
@@ -305,10 +306,10 @@ soul mcp --storage /path/to/.mira/mira.db
 ### Option 3: Both MIRA and SOUL as separate servers
 
 ```bash
-# Terminal 1 - MIRA (SOUL disabled by default)
+# Terminal 1 — MIRA (SOUL disabled by default)
 ./mira --config /path/to/mira/config.yaml
 
-# Terminal 2 - SOUL (shares MIRA's database)
+# Terminal 2 — SOUL (shares MIRA's database)
 ./soul mcp --storage /path/to/.mira/mira.db
 ```
 
@@ -316,7 +317,8 @@ Both run as separate MCP server processes registered in your MCP client configur
 
 ### MCP Client Configuration
 
-**b0p:**
+**OpenCode / b0p:**
+
 ```json
 {
   "mcpServers": {
@@ -335,6 +337,7 @@ Both run as separate MCP server processes registered in your MCP client configur
 ```
 
 **Claude Desktop:**
+
 ```json
 {
   "mcpServers": {
@@ -353,13 +356,13 @@ Both run as separate MCP server processes registered in your MCP client configur
 ### Tool Count
 
 | Configuration | Tools available |
-|---------------|------------------|
-| MIRA only | 8 (`mira_*`) |
+|---------------|-----------------|
+| MIRA only | 9 (`mira_*`) |
 | SOUL standalone | 8 (`soul_*`) |
-| MIRA + SOUL (separate servers) | 16 (`mira_*` + `soul_*`) |
-| MIRA with embedded SOUL (single binary) | 16 (`mira_*` + `soul_*`) |
+| MIRA + SOUL (separate servers) | 17 (`mira_*` + `soul_*`) |
+| MIRA with embedded SOUL (single binary) | 17 (`mira_*` + `soul_*`) |
 
-Tool names never collide - MIRA tools use `mira_` prefix, SOUL tools use `soul_` prefix.
+Tool names never collide — MIRA tools use `mira_` prefix, SOUL tools use `soul_` prefix.
 
 ---
 
@@ -367,7 +370,7 @@ Tool names never collide - MIRA tools use `mira_` prefix, SOUL tools use `soul_`
 
 SOUL computes drift by comparing the current snapshot against N previous versions:
 
-- Per-dimension distance: voice profile, personality traits, value system, emotional tone (4 of 6 dimensions; communication style and behavioral signature are not yet monitored for drift)
+- Per-dimension distance across all 6 dimensions: voice profile, personality traits, value system, emotional tone, communication style, behavioral signature
 - Average `DriftScore` across dimensions
 - Alert when `DriftScore > threshold` (default: 0.3)
 
@@ -393,26 +396,10 @@ github.com/benoitpetit/soul
 
 **Repository:** https://github.com/benoitpetit/soul
 
-Go 1.23.2 - SQLite via `mattn/go-sqlite3` - MCP via `mark3labs/mcp-go v0.2.0`
+Go 1.23.2 — SQLite via `mattn/go-sqlite3` — MCP via `mark3labs/mcp-go v0.2.0`
 
 ---
 
 ## Changelog
 
-### v0.0.6 (2026-04-24)
-
-- 🚀 New version 0.0.6
-
-### v0.0.5 (2026-04-24)
-
-- 🚀 New version 0.0.5
-
-### v0.0.4 (2026-04-24)
-
-- **Unified embedded configuration**: Added `NewApplicationWithDBAndConfig` so MIRA can pass a full `SoulConfig` when embedding SOUL. Embedded mode now supports the same tuning options as standalone mode (drift threshold, recall budget, extraction confidence, etc.).
-- **Public API expansion**: Exposed `soul.Config` and `soul.DefaultConfig()` aliases for external modules.
-- **Prepublish script**: Added `scripts/prepublish.sh` for automated version bump, build, test, and benchmark workflow.
-
-### v0.0.3 (2026-04-17)
-
-- Initial stable release with MCP server, identity capture, drift detection, model swap handling, and evolution tracking.
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.

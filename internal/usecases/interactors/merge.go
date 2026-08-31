@@ -46,9 +46,7 @@ func (uc *IdentityMergeUseCase) MergeIdentities(ctx context.Context, agentIDA, a
 	if err != nil {
 		return nil, fmt.Errorf("compatibility calculation failed: %w", err)
 	}
-	
-	fmt.Printf("Merge compatibility between %s and %s: %.2f\n", agentIDA, agentIDB, compatibility)
-	
+
 	if compatibility < 0.3 {
 		return nil, fmt.Errorf("identities are incompatible (%.2f), merge aborted", compatibility)
 	}
@@ -61,6 +59,10 @@ func (uc *IdentityMergeUseCase) MergeIdentities(ctx context.Context, agentIDA, a
 	
 	// 4. Sauvegarder le résultat
 	merged.AgentID = agentIDA // L'agent A est considéré comme le "principal"
+	latest, _ := uc.storage.GetLatestIdentity(ctx, agentIDA)
+	if latest != nil {
+		merged.Version = latest.Version + 1
+	}
 	if err := uc.storage.StoreIdentity(ctx, merged); err != nil {
 		return nil, fmt.Errorf("failed to store merged identity: %w", err)
 	}

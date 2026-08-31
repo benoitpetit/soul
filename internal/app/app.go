@@ -399,6 +399,23 @@ func (app *SoulApplication) Merge(ctx context.Context, agentA, agentB string, st
 	return merged, nil
 }
 
+// ClearMemory removes all identity data for a given agent.
+func (app *SoulApplication) ClearMemory(ctx context.Context, agentID string) error {
+	if app.Storage == nil {
+		return fmt.Errorf("storage not initialized")
+	}
+	snaps, err := app.Storage.GetIdentityHistory(ctx, agentID, 1000)
+	if err != nil {
+		return fmt.Errorf("failed to get snapshots: %w", err)
+	}
+	for _, snap := range snaps {
+		if err := app.Storage.DeleteIdentity(ctx, snap.ID); err != nil {
+			return fmt.Errorf("failed to delete identity: %w", err)
+		}
+	}
+	return nil
+}
+
 // Close ferme l'application proprement
 func (app *SoulApplication) Close() error {
 	if app.Storage != nil {

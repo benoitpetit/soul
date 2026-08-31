@@ -69,3 +69,14 @@ type UpdateResult = interactors.UpdateResult
 
 // IdentitySnapshot is a public alias.
 type IdentitySnapshot = entities.IdentitySnapshot
+
+// MergeStrategy is a public alias.
+type MergeStrategy = valueobjects.MergeStrategy
+
+// Merge strategy constants.
+const (
+	MergePreserveDominant = valueobjects.MergePreserveDominant
+	MergeWeightedAverage  = valueobjects.MergeWeightedAverage
+	MergeLatestWins       = valueobjects.MergeLatestWins
+	MergeSynthesize       = valueobjects.MergeSynthesize
+)

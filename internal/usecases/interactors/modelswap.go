@@ -5,6 +5,7 @@ package interactors
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
 	"github.com/benoitpetit/soul/internal/usecases/ports"
@@ -39,6 +40,7 @@ func (uc *ModelSwapUseCase) HandleModelSwap(ctx context.Context, agentID, previo
 	if err != nil {
 		return nil, fmt.Errorf("failed to handle model swap: %w", err)
 	}
+	swap.AgentID = agentID
 
 	// 2. Récupérer l'identité actuelle
 	identity, err := uc.storage.GetLatestIdentity(ctx, agentID)
@@ -47,7 +49,11 @@ func (uc *ModelSwapUseCase) HandleModelSwap(ctx context.Context, agentID, previo
 	}
 
 	if identity == nil {
-		return swap, fmt.Errorf("no identity found for agent %s, cannot reinforce", agentID)
+		// No existing identity: record the swap without reinforcement
+		if err := uc.storage.RecordModelSwap(ctx, swap); err != nil {
+			log.Printf("[SOUL] failed to record model swap: %v", err)
+		}
+		return swap, nil
 	}
 
 	// 3. Atomic transaction: snapshot + swap + notification
@@ -65,22 +71,22 @@ func (uc *ModelSwapUseCase) HandleModelSwap(ctx context.Context, agentID, previo
 	// 3a. Renforcer l'identité (créer un nouveau snapshot post-swap)
 	reinforced, err := uc.handler.ReinforceIdentity(ctx, identity)
 	if err != nil {
-		fmt.Printf("Warning: identity reinforcement failed: %v\n", err)
+		log.Printf("[SOUL] identity reinforcement failed: %v", err)
 	} else {
 		if err := storageTx.StoreIdentity(ctx, reinforced); err != nil {
-			fmt.Printf("Warning: failed to store reinforced identity: %v\n", err)
+			log.Printf("[SOUL] failed to store reinforced identity: %v", err)
 		}
 	}
 
 	// 3b. Enregistrer que le renforcement a été appliqué
 	swap.ReinforcementApplied = true
 	if err := storageTx.RecordModelSwap(ctx, swap); err != nil {
-		fmt.Printf("Warning: failed to record model swap: %v\n", err)
+		log.Printf("[SOUL] failed to record model swap: %v", err)
 	}
 
 	// 3c. Notifier MIRA du changement
 	if err := storageTx.NotifyMiraOfIdentityChange(ctx, agentID, "model_swap"); err != nil {
-		fmt.Printf("Warning: failed to notify MIRA: %v\n", err)
+		log.Printf("[SOUL] failed to notify MIRA: %v", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -123,7 +129,7 @@ func (uc *ModelSwapUseCase) MeasurePostSwapDrift(ctx context.Context, agentID st
 		return 0, err
 	}
 	if latestSwap == nil {
-		return 0, fmt.Errorf("no model swap recorded")
+		return 0, nil // No swap recorded = no drift to measure
 	}
 	
 	return uc.handler.MeasurePostSwapDrift(ctx, latestSwap)
@@ -141,7 +147,7 @@ func (uc *ModelSwapUseCase) ValidateIdentityPreserved(ctx context.Context, agent
 		return false, err
 	}
 	if latestSwap == nil {
-		return false, fmt.Errorf("no model swap recorded")
+		return true, nil // No swap = identity trivially preserved
 	}
 	
 	// Si dérive < 0.3, on considère que l'identité est préservée

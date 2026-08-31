@@ -26,6 +26,7 @@ import (
 	"github.com/benoitpetit/soul/internal/app"
 	soulmcp "github.com/benoitpetit/soul/internal/interfaces/mcp"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
+	_ "github.com/mutecomm/go-sqlcipher/v4"
 )
 
 func main() {

@@ -12,6 +12,7 @@ import (
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
 	"github.com/benoitpetit/soul/internal/usecases/ports"
+	"github.com/benoitpetit/soul/internal/util"
 )
 
 // SoulDriftDetector implémente ports.IdentityDriftDetector
@@ -33,7 +34,7 @@ func NewSoulDriftDetector(threshold float64) *SoulDriftDetector {
 }
 
 // WithStorage injecte un repository d'identité pour activer le monitoring continu réel.
-// Sans stockage, MonitorContinuously fonctionne en mode stub.
+// Sans stockage, MonitorContinuously opère en mode log uniquement (sans persistance).
 func (d *SoulDriftDetector) WithStorage(storage ports.IdentityRepository) *SoulDriftDetector {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -232,7 +233,7 @@ func (d *SoulDriftDetector) DetectDiffusion(ctx context.Context, identity *entit
 // MonitorContinuously surveille en continu la dérive identitaire d'un agent.
 // Si un stockage est configuré (via WithStorage), la boucle compare périodiquement
 // le dernier snapshot avec la version précédente et émet un rapport quand une dérive
-// significative est détectée. Sinon, elle fonctionne en mode stub (logs uniquement).
+// significative est détectée. Sinon, elle fonctionne en mode log uniquement (sans persistance).
 func (d *SoulDriftDetector) MonitorContinuously(ctx context.Context, agentID string, threshold float64) (<-chan valueobjects.IdentityDriftReport, error) {
 	if threshold <= 0 {
 		threshold = d.threshold
@@ -351,17 +352,9 @@ func adaptiveThresholdIQR(scores []float64) float64 {
 	sorted := make([]float64, len(scores))
 	copy(sorted, scores)
 	sort.Float64s(sorted)
+
 	q1 := percentile(sorted, 25)
-	q3 := percentile(sorted, 75)
-	iqr := q3 - q1
-	threshold := q1 - 1.5*iqr
-	if threshold < 0.15 {
-		threshold = 0.15
-	}
-	if threshold > 0.75 {
-		threshold = 0.75
-	}
-	return threshold
+	return q1
 }
 
 func adaptiveThresholdElbow(scores []float64) float64 {
@@ -458,8 +451,8 @@ func (d *SoulDriftDetector) compareTraits(previous, current []entities.Personali
 		if prevTrait, exists := prevMap[currTrait.Name]; exists {
 			matchingTraits++
 			// Distance = différence d'intensité + différence de confiance
-			intensityDiff := abs(currTrait.Intensity - prevTrait.Intensity)
-			confidenceDiff := abs(currTrait.Confidence - prevTrait.Confidence)
+			intensityDiff := util.Abs(currTrait.Intensity - prevTrait.Intensity)
+			confidenceDiff := util.Abs(currTrait.Confidence - prevTrait.Confidence)
 			totalDistance += (intensityDiff + confidenceDiff) / 2.0
 		}
 	}
@@ -486,14 +479,14 @@ func (d *SoulDriftDetector) compareTraits(previous, current []entities.Personali
 
 func (d *SoulDriftDetector) compareValueSystems(previous, current *entities.ValueSystem) float64 {
 	diff := 0.0
-	diff += abs(previous.PrioritizesAccuracy - current.PrioritizesAccuracy)
-	diff += abs(previous.PrioritizesHelpfulness - current.PrioritizesHelpfulness)
-	diff += abs(previous.PrioritizesEfficiency - current.PrioritizesEfficiency)
-	diff += abs(previous.PrioritizesClarity - current.PrioritizesClarity)
-	diff += abs(previous.PrioritizesSafety - current.PrioritizesSafety)
-	diff += abs(previous.PrioritizesCreativity - current.PrioritizesCreativity)
-	
-	return min(diff/6.0, 1.0)
+	diff += util.Abs(previous.PrioritizesAccuracy - current.PrioritizesAccuracy)
+	diff += util.Abs(previous.PrioritizesHelpfulness - current.PrioritizesHelpfulness)
+	diff += util.Abs(previous.PrioritizesEfficiency - current.PrioritizesEfficiency)
+	diff += util.Abs(previous.PrioritizesClarity - current.PrioritizesClarity)
+	diff += util.Abs(previous.PrioritizesSafety - current.PrioritizesSafety)
+	diff += util.Abs(previous.PrioritizesCreativity - current.PrioritizesCreativity)
+
+	return util.Min(diff/6.0, 1.0)
 }
 
 // calculateCommunicationStyleDrift computes drift for communication style.
@@ -504,18 +497,4 @@ func (d *SoulDriftDetector) calculateCommunicationStyleDrift(old, newStyle entit
 // calculateBehavioralSignatureDrift computes drift for behavioral signature.
 func (d *SoulDriftDetector) calculateBehavioralSignatureDrift(old, newSig entities.BehavioralSignature) valueobjects.DimensionDrift {
 	return entities.CalculateBehavioralSignatureDrift(old, newSig)
-}
-
-func abs(x float64) float64 {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-func min(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
 }

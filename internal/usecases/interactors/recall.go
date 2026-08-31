@@ -4,6 +4,7 @@ package interactors
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/benoitpetit/soul/internal/domain/entities"
 	"github.com/benoitpetit/soul/internal/domain/valueobjects"
@@ -42,8 +43,7 @@ func (uc *IdentityRecallUseCase) RecallIdentity(ctx context.Context, query *valu
 	if identity.DerivedFromID != nil {
 		previous, _ := uc.storage.GetIdentityByID(ctx, *identity.DerivedFromID)
 		if previous != nil && identity.IsIdentityDiffusionDetected(previous) {
-			// Générer une alerte de diffusion
-			fmt.Printf("WARNING: Identity diffusion detected for agent %s\n", query.AgentID)
+			log.Printf("[SOUL] identity diffusion detected for agent %s", query.AgentID)
 		}
 	}
 	
@@ -87,7 +87,10 @@ func (uc *IdentityRecallUseCase) RecallIdentityWithContext(ctx context.Context, 
 	}
 	
 	// 4. Recalculer l'estimation de tokens
-	tokenEstimate := len(enrichedContent) / 4 // Approximation grossière
+	tokenEstimate, err := uc.composer.EstimateTokenCount(ctx, enrichedContent)
+	if err != nil {
+		tokenEstimate = len(enrichedContent) / 4
+	}
 	
 	return &valueobjects.IdentityContextPrompt{
 		Content:         enrichedContent,
