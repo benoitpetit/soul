@@ -6,7 +6,7 @@
 
   **Identity Preservation System for LLM Agents**
 
-  [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
+  [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
   [![Version](https://img.shields.io/badge/Version-0.0.6-blue?style=flat-square)]()
   [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?style=flat-square)]()
@@ -155,7 +155,7 @@ SOUL adds these tables to the shared SQLite database:
 
 ### Prerequisites
 
-- Go 1.23+
+- Go 1.25+
 - GCC (for `go-sqlite3` CGo compilation)
 
 ### Build
@@ -244,6 +244,20 @@ soul status --agent my-agent
 
 ```bash
 soul history --agent my-agent --limit 20
+```
+
+### Update identity via natural language directive
+
+```bash
+soul update --agent my-agent --directive "réponds avec plus d'enthousiasme"
+soul update --agent my-agent --directive "be more formal" --reason "user request"
+```
+
+### Apply a structured patch to identity
+
+```bash
+soul patch --agent my-agent --enthusiasm_level 0.9 --humor_level 0.6
+soul patch --agent my-agent --formality_level 0.8 --reason "corporate context"
 ```
 
 ### Start the MCP server
@@ -396,7 +410,7 @@ github.com/benoitpetit/soul
 
 **Repository:** https://github.com/benoitpetit/soul
 
-Go 1.23.2 — SQLite via `mattn/go-sqlite3` — MCP via `mark3labs/mcp-go v0.2.0`
+Go 1.25.0 — SQLite via `mattn/go-sqlite3` — MCP via `mark3labs/mcp-go v0.2.0`
 
 ---
 
